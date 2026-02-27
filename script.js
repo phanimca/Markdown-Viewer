@@ -1616,8 +1616,8 @@ This is a fully client-side application. Your content never leaves your browser 
     const clone = svgEl.cloneNode(true);
     // Ensure explicit width/height so the canvas has the right dimensions
     const bbox = svgEl.getBoundingClientRect();
-    if (!clone.getAttribute('width'))  clone.setAttribute('width',  bbox.width);
-    if (!clone.getAttribute('height')) clone.setAttribute('height', bbox.height);
+    if (!clone.getAttribute('width'))  clone.setAttribute('width',  Math.round(bbox.width));
+    if (!clone.getAttribute('height')) clone.setAttribute('height', Math.round(bbox.height));
     const serialized = new XMLSerializer().serializeToString(clone);
     return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(serialized);
   }
@@ -1628,9 +1628,9 @@ This is a fully client-side application. Your content never leaves your browser 
   function svgToCanvas(svgEl) {
     return new Promise((resolve, reject) => {
       const bbox = svgEl.getBoundingClientRect();
-      const scale = window.devicePixelRatio || 2;
-      const width  = Math.max(bbox.width,  1);
-      const height = Math.max(bbox.height, 1);
+      const scale = window.devicePixelRatio || 1;
+      const width  = Math.max(Math.round(bbox.width),  1);
+      const height = Math.max(Math.round(bbox.height), 1);
 
       const canvas = document.createElement('canvas');
       canvas.width  = width  * scale;
@@ -1638,9 +1638,10 @@ This is a fully client-side application. Your content never leaves your browser 
       const ctx = canvas.getContext('2d');
       ctx.scale(scale, scale);
 
-      // Fill background matching current theme
-      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-      ctx.fillStyle = isDark ? '#0d1117' : '#ffffff';
+      // Fill background matching current theme using the CSS variable value
+      const bgColor = getComputedStyle(document.documentElement)
+        .getPropertyValue('--bg-color').trim() || '#ffffff';
+      ctx.fillStyle = bgColor;
       ctx.fillRect(0, 0, width, height);
 
       const img = new Image();
@@ -1662,7 +1663,7 @@ This is a fully client-side application. Your content never leaves your browser 
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'diagram.png';
+        a.download = `diagram-${Date.now()}.png`;
         a.click();
         URL.revokeObjectURL(url);
         btn.innerHTML = '<i class="bi bi-check-lg"></i>';
@@ -1710,7 +1711,7 @@ This is a fully client-side application. Your content never leaves your browser 
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'diagram.svg';
+    a.download = `diagram-${Date.now()}.svg`;
     a.click();
     URL.revokeObjectURL(url);
     const original = btn.innerHTML;
@@ -1831,7 +1832,7 @@ This is a fully client-side application. Your content never leaves your browser 
       canvas.toBlob(blob => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url; a.download = 'diagram.png'; a.click();
+        a.href = url; a.download = `diagram-${Date.now()}.png`; a.click();
         URL.revokeObjectURL(url);
         btn.innerHTML = '<i class="bi bi-check-lg"></i>';
         setTimeout(() => { btn.innerHTML = original; }, 1500);
@@ -1848,7 +1849,7 @@ This is a fully client-side application. Your content never leaves your browser 
     const blob = new Blob([serialized], { type: 'image/svg+xml' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url; a.download = 'diagram.svg'; a.click();
+    a.href = url; a.download = `diagram-${Date.now()}.svg`; a.click();
     URL.revokeObjectURL(url);
   });
 
