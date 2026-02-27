@@ -21,7 +21,7 @@ Markdown Viewer is a professional, full-featured Markdown editor and preview app
 - **Live preview** - Instantly see changes as you type
 - **Syntax highlighting** - Beautiful code highlighting for multiple programming languages
 - **LaTeX math support** - Render mathematical equations using LaTeX syntax
-- **Mermaid diagrams** - Create diagrams and flowcharts within your Markdown
+- **Mermaid diagrams** - Create diagrams and flowcharts within your Markdown; hover over any diagram to reveal a toolbar for zooming, downloading (PNG/SVG), and copying to clipboard
 - **Dark mode toggle** - Switch between light and dark themes for comfortable viewing
 - **Export options** - Download your content as Markdown, HTML, or PDF
 - **Import Markdown files** - Drag & drop or select files to open
@@ -55,6 +55,24 @@ Markdown Viewer is a professional, full-featured Markdown editor and preview app
 4. **Exporting Content** - Use the "Export" dropdown to download as MD, HTML, or PDF
 5. **Toggle Dark Mode** - Click the moon icon to switch between light and dark themes
 6. **Toggle Sync Scrolling** - Enable/disable synchronized scrolling between panels
+
+### Mermaid Diagram Toolbar
+
+When a Mermaid diagram is rendered, hover over it to reveal a small toolbar with the following actions:
+
+| Button | Action |
+|--------|--------|
+| ⛶ (arrows) | Open diagram in a zoom/pan modal |
+| PNG | Download the diagram as a PNG image |
+| 📋 (clipboard) | Copy the diagram image to the clipboard |
+| SVG | Download the diagram as an SVG file |
+
+Inside the **zoom modal** you can:
+- **Zoom in / out** using the buttons or the mouse wheel
+- **Pan** by clicking and dragging the diagram
+- **Reset** zoom and position with the Reset button
+- **Download PNG or SVG** directly from the modal
+- **Close** with the × button or by pressing `Escape`
 
 ### Supported Markdown Features
 
