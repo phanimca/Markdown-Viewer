@@ -57,6 +57,8 @@ document.addEventListener("DOMContentLoaded", function () {
   const mobileExportPdf     = document.getElementById("mobile-export-pdf");
   const mobileCopyMarkdown  = document.getElementById("mobile-copy-markdown");
   const mobileThemeToggle   = document.getElementById("mobile-theme-toggle");
+  const shareButton         = document.getElementById("share-button");
+  const mobileShareButton   = document.getElementById("mobile-share-button");
 
   // Check dark mode preference first for proper initialization
   const prefersDarkMode =
@@ -692,6 +694,7 @@ This is a fully client-side application. Your content never leaves your browser 
   mobileExportHtml.addEventListener("click", () => exportHtml.click());
   mobileExportPdf.addEventListener("click", () => exportPdf.click());
   mobileCopyMarkdown.addEventListener("click", () => copyMarkdownButton.click());
+  mobileShareButton.addEventListener("click", () => shareButton.click());
   mobileThemeToggle.addEventListener("click", () => {
     themeToggle.click();
     mobileThemeToggle.innerHTML = themeToggle.innerHTML + " Toggle Dark Mode";
@@ -1525,6 +1528,81 @@ This is a fully client-side application. Your content never leaves your browser 
       copyMarkdownButton.innerHTML = originalText;
     }, 2000);
   }
+
+  // ============================================
+  // Share via URL (pako compression + base64url)
+  // ============================================
+
+  const MAX_SHARE_URL_LENGTH = 32000;
+
+  function encodeMarkdownForShare(text) {
+    const compressed = pako.deflate(new TextEncoder().encode(text));
+    const chunkSize = 0x8000;
+    let binary = '';
+    for (let i = 0; i < compressed.length; i += chunkSize) {
+      binary += String.fromCharCode.apply(null, compressed.subarray(i, i + chunkSize));
+    }
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  function decodeMarkdownFromShare(encoded) {
+    const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+    const binary = atob(base64);
+    const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
+    return new TextDecoder().decode(pako.inflate(bytes));
+  }
+
+  shareButton.addEventListener("click", function () {
+    const markdownText = markdownEditor.value;
+    let encoded;
+    try {
+      encoded = encodeMarkdownForShare(markdownText);
+    } catch (e) {
+      console.error("Share encoding failed:", e);
+      alert("Failed to encode content for sharing: " + e.message);
+      return;
+    }
+
+    const shareUrl = window.location.origin + window.location.pathname + '#share=' + encoded;
+    if (shareUrl.length > MAX_SHARE_URL_LENGTH) {
+      alert("The document is too large to share via URL. Please reduce content size and try again.");
+      return;
+    }
+
+    window.location.hash = 'share=' + encoded;
+
+    const originalText = shareButton.innerHTML;
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        shareButton.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
+        setTimeout(() => { shareButton.innerHTML = originalText; }, 2000);
+      }).catch(() => {
+        shareButton.innerHTML = '<i class="bi bi-link-45deg"></i> Linked!';
+        setTimeout(() => { shareButton.innerHTML = originalText; }, 2000);
+      });
+    } else {
+      shareButton.innerHTML = '<i class="bi bi-link-45deg"></i> Linked!';
+      setTimeout(() => { shareButton.innerHTML = originalText; }, 2000);
+    }
+  });
+
+  function loadFromShareHash() {
+    if (typeof pako === 'undefined') return;
+    const hash = window.location.hash;
+    if (!hash.startsWith('#share=')) return;
+    const encoded = hash.slice('#share='.length);
+    if (!encoded) return;
+    try {
+      const decoded = decodeMarkdownFromShare(encoded);
+      markdownEditor.value = decoded;
+      renderMarkdown();
+    } catch (e) {
+      console.error("Failed to load shared content:", e);
+      alert("The shared URL could not be decoded. It may be corrupted or incomplete.");
+    }
+  }
+
+  loadFromShareHash();
 
   const dropEvents = ["dragenter", "dragover", "dragleave", "drop"];
 

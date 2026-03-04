@@ -54,6 +54,7 @@
     
  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js" integrity="sha384-OLBgp1GsljhM2TJ+sbHjaiH9txEUvgdDTAzHv2P24donTt6/529l+9Ua0vFImLlb" crossorigin="anonymous"></script>
 </head>
 <body>
     <div class="app-container">
@@ -117,6 +118,10 @@
                     
                     <button id="copy-markdown-button" class="tool-button" title="Copy Markdown">
                         <i class="bi bi-clipboard"></i> Copy
+                    </button>
+                    
+                    <button id="share-button" class="tool-button" title="Share via URL">
+                        <i class="bi bi-share"></i> Share
                     </button>
                     
                     <button id="theme-toggle" class="tool-button" title="Toggle Dark Mode">
@@ -189,6 +194,10 @@
                             
                             <button id="mobile-copy-markdown" class="mobile-menu-item" title="Copy Markdown">
                                 <i class="bi bi-clipboard me-2"></i> Copy
+                            </button>
+                            
+                            <button id="mobile-share-button" class="mobile-menu-item" title="Share via URL">
+                                <i class="bi bi-share me-2"></i> Share
                             </button>
                             
                             <button id="mobile-theme-toggle" class="mobile-menu-item" title="Toggle Dark Mode">
