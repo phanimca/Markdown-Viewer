@@ -232,6 +232,33 @@
         </div>
     </div>
 
+    <!-- Share URL Modal -->
+    <div id="share-modal" role="dialog" aria-modal="true" aria-label="Share via URL">
+        <div class="share-modal-content">
+            <div class="share-modal-header">
+                <span><i class="bi bi-share me-2"></i>Share via URL</span>
+                <button class="share-modal-close" id="share-modal-close" title="Close" aria-label="Close share modal">
+                    <i class="bi bi-x-lg"></i>
+                </button>
+            </div>
+            <div id="share-modal-warning" class="share-modal-warning" style="display:none;">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                <span>This URL is very large and may not work in all browsers or sharing platforms. Consider exporting as a <strong>.md</strong> file instead.</span>
+            </div>
+            <div class="share-modal-body">
+                <textarea id="share-url-display" class="share-url-textarea" readonly aria-label="Share URL"></textarea>
+            </div>
+            <div class="share-modal-footer">
+                <button id="share-modal-copy" class="tool-button">
+                    <i class="bi bi-clipboard"></i> Copy URL
+                </button>
+                <button class="tool-button" id="share-modal-close-btn">
+                    <i class="bi bi-x"></i> Close
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Mermaid Zoom Modal -->
     <div id="mermaid-zoom-modal" role="dialog" aria-modal="true" aria-label="Diagram zoom view">
         <div class="mermaid-modal-content">

@@ -1005,6 +1005,111 @@ a:focus {
 }
 
 /* ========================================
+   SHARE URL MODAL
+   ======================================== */
+
+#share-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background-color: rgba(0, 0, 0, 0.75);
+  align-items: center;
+  justify-content: center;
+}
+
+#share-modal.active {
+  display: flex;
+}
+
+.share-modal-content {
+  background-color: var(--bg-color);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  width: 600px;
+  max-width: 92vw;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.share-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.share-modal-header span {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-color);
+}
+
+.share-modal-close {
+  background: none;
+  border: none;
+  color: var(--text-color);
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: background-color 0.2s ease;
+}
+
+.share-modal-close:hover {
+  background-color: var(--button-hover);
+}
+
+.share-modal-warning {
+  background-color: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffc107;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+[data-theme="dark"] .share-modal-warning {
+  background-color: #332d00;
+  color: #ffc107;
+  border-color: #665900;
+}
+
+.share-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.share-url-textarea {
+  width: 100%;
+  height: 80px;
+  resize: none;
+  font-family: monospace;
+  font-size: 12px;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background-color: var(--editor-bg);
+  color: var(--text-color);
+  word-break: break-all;
+}
+
+.share-url-textarea:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+.share-modal-footer {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+/* ========================================
    MERMAID ZOOM MODAL
    ======================================== */
 
