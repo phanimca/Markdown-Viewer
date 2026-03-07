@@ -292,11 +292,12 @@ This is a fully client-side application. Your content never leaves your browser 
 
   const STORAGE_KEY = 'markdownViewerTabs';
   const ACTIVE_TAB_KEY = 'markdownViewerActiveTab';
+  const UNTITLED_COUNTER_KEY = 'markdownViewerUntitledCounter';
   let tabs = [];
   let activeTabId = null;
   let draggedTabId = null;
   let saveTabStateTimeout = null;
-  let updateTitleTimeout = null;
+  let untitledCounter = 0;
 
   function loadTabsFromStorage() {
     try {
@@ -322,18 +323,18 @@ This is a fully client-side application. Your content never leaves your browser 
     localStorage.setItem(ACTIVE_TAB_KEY, id);
   }
 
-  function deriveTitleFromContent(content) {
-    if (!content) return 'Untitled';
-    const lines = content.split('\n');
-    for (let i = 0; i < lines.length; i++) {
-      const h1Match = lines[i].match(/^#\s+(.+)/);
-      if (h1Match) return h1Match[1].trim();
-    }
-    for (let i = 0; i < lines.length; i++) {
-      const trimmed = lines[i].trim();
-      if (trimmed) return trimmed.substring(0, 30);
-    }
-    return 'Untitled';
+  function loadUntitledCounter() {
+    return parseInt(localStorage.getItem(UNTITLED_COUNTER_KEY) || '0', 10);
+  }
+
+  function saveUntitledCounter(val) {
+    localStorage.setItem(UNTITLED_COUNTER_KEY, String(val));
+  }
+
+  function nextUntitledTitle() {
+    untitledCounter += 1;
+    saveUntitledCounter(untitledCounter);
+    return 'Untitled ' + untitledCounter;
   }
 
   function createTab(content, title, viewMode) {
@@ -342,7 +343,7 @@ This is a fully client-side application. Your content never leaves your browser 
     if (viewMode === undefined) viewMode = 'split';
     return {
       id: 'tab_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8),
-      title: title || deriveTitleFromContent(content) || 'Untitled',
+      title: title || 'Untitled',
       content: content,
       scrollPos: 0,
       viewMode: viewMode,
@@ -367,24 +368,48 @@ This is a fully client-side application. Your content never leaves your browser 
       titleSpan.textContent = tab.title || 'Untitled';
       titleSpan.title = tab.title || 'Untitled';
 
-      const closeBtn = document.createElement('button');
-      closeBtn.className = 'tab-close-btn';
-      closeBtn.setAttribute('aria-label', 'Close tab');
-      closeBtn.innerHTML = '<i class="bi bi-x"></i>';
-      if (tabsArr.length === 1) {
-        closeBtn.style.visibility = 'hidden';
-      }
+      // Three-dot menu button
+      const menuBtn = document.createElement('button');
+      menuBtn.className = 'tab-menu-btn';
+      menuBtn.setAttribute('aria-label', 'File options');
+      menuBtn.title = 'File options';
+      menuBtn.innerHTML = '&#8943;';
+
+      // Dropdown
+      const dropdown = document.createElement('div');
+      dropdown.className = 'tab-menu-dropdown';
+      dropdown.innerHTML =
+        '<button class="tab-menu-item" data-action="rename"><i class="bi bi-pencil"></i> Rename</button>' +
+        '<button class="tab-menu-item" data-action="duplicate"><i class="bi bi-files"></i> Duplicate</button>' +
+        '<button class="tab-menu-item tab-menu-item-danger" data-action="delete"><i class="bi bi-trash"></i> Delete</button>';
+
+      menuBtn.appendChild(dropdown);
+
+      menuBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        // Close all other open dropdowns first
+        document.querySelectorAll('.tab-menu-btn.open').forEach(function(btn) {
+          if (btn !== menuBtn) btn.classList.remove('open');
+        });
+        menuBtn.classList.toggle('open');
+      });
+
+      dropdown.querySelectorAll('.tab-menu-item').forEach(function(actionBtn) {
+        actionBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          menuBtn.classList.remove('open');
+          const action = actionBtn.getAttribute('data-action');
+          if (action === 'rename') renameTab(tab.id);
+          else if (action === 'duplicate') duplicateTab(tab.id);
+          else if (action === 'delete') deleteTab(tab.id);
+        });
+      });
 
       item.appendChild(titleSpan);
-      item.appendChild(closeBtn);
+      item.appendChild(menuBtn);
 
       item.addEventListener('click', function() {
         switchTab(tab.id);
-      });
-
-      closeBtn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        closeTab(tab.id);
       });
 
       item.addEventListener('dragstart', function() {
@@ -422,12 +447,28 @@ This is a fully client-side application. Your content never leaves your browser 
       tabList.appendChild(item);
     });
 
+    // "+ Create" button at end of tab list
+    const newBtn = document.createElement('button');
+    newBtn.className = 'tab-new-btn';
+    newBtn.title = 'New Tab (Ctrl+T)';
+    newBtn.setAttribute('aria-label', 'Open new tab');
+    newBtn.innerHTML = '<i class="bi bi-plus-lg"></i>';
+    newBtn.addEventListener('click', function() { newTab(); });
+    tabList.appendChild(newBtn);
+
     // Auto-scroll active tab into view
     const activeItem = tabList.querySelector('.tab-item.active');
     if (activeItem) {
       activeItem.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     }
   }
+
+  // Close any open tab dropdown when clicking elsewhere in the document
+  document.addEventListener('click', function() {
+    document.querySelectorAll('.tab-menu-btn.open').forEach(function(btn) {
+      btn.classList.remove('open');
+    });
+  });
 
   function saveCurrentTabState() {
     const tab = tabs.find(function(t) { return t.id === activeTabId; });
@@ -441,26 +482,6 @@ This is a fully client-side application. Your content never leaves your browser 
   function restoreViewMode(mode) {
     currentViewMode = null;
     setViewMode(mode || 'split');
-  }
-
-  function updateActiveTabTitle() {
-    const tab = tabs.find(function(t) { return t.id === activeTabId; });
-    if (!tab) return;
-    const newTitle = deriveTitleFromContent(markdownEditor.value) || 'Untitled';
-    if (newTitle === tab.title) return;
-    tab.title = newTitle;
-    saveTabsToStorage(tabs);
-    const tabList = document.getElementById('tab-list');
-    if (tabList) {
-      const item = tabList.querySelector('[data-tab-id="' + activeTabId + '"]');
-      if (item) {
-        const titleSpan = item.querySelector('.tab-title');
-        if (titleSpan) {
-          titleSpan.textContent = newTitle;
-          titleSpan.title = newTitle;
-        }
-      }
-    }
   }
 
   function switchTab(tabId) {
@@ -485,6 +506,7 @@ This is a fully client-side application. Your content never leaves your browser 
       alert('Maximum of 20 tabs reached. Please close an existing tab to open a new one.');
       return;
     }
+    if (!title) title = nextUntitledTitle();
     const tab = createTab(content, title);
     tabs.push(tab);
     switchTab(tab.id);
@@ -492,11 +514,19 @@ This is a fully client-side application. Your content never leaves your browser 
   }
 
   function closeTab(tabId) {
-    if (tabs.length <= 1) return;
     const idx = tabs.findIndex(function(t) { return t.id === tabId; });
     if (idx === -1) return;
     tabs.splice(idx, 1);
-    if (activeTabId === tabId) {
+    if (tabs.length === 0) {
+      // Auto-create new "Untitled" when last tab is deleted
+      const newT = createTab('', nextUntitledTitle());
+      tabs.push(newT);
+      activeTabId = newT.id;
+      saveActiveTabId(activeTabId);
+      markdownEditor.value = '';
+      restoreViewMode('split');
+      renderMarkdown();
+    } else if (activeTabId === tabId) {
       const newIdx = Math.max(0, idx - 1);
       activeTabId = tabs[newIdx].id;
       saveActiveTabId(activeTabId);
@@ -512,11 +542,114 @@ This is a fully client-side application. Your content never leaves your browser 
     renderTabBar(tabs, activeTabId);
   }
 
+  function deleteTab(tabId) {
+    closeTab(tabId);
+  }
+
+  function renameTab(tabId) {
+    const tab = tabs.find(function(t) { return t.id === tabId; });
+    if (!tab) return;
+    const modal = document.getElementById('rename-modal');
+    const input = document.getElementById('rename-modal-input');
+    const confirmBtn = document.getElementById('rename-modal-confirm');
+    const cancelBtn = document.getElementById('rename-modal-cancel');
+    if (!modal || !input) return;
+    input.value = tab.title;
+    modal.style.display = 'flex';
+    input.focus();
+    input.select();
+
+    function doRename() {
+      const newName = input.value.trim();
+      if (newName) {
+        tab.title = newName;
+        saveTabsToStorage(tabs);
+        renderTabBar(tabs, activeTabId);
+      }
+      modal.style.display = 'none';
+      cleanup();
+    }
+
+    function cleanup() {
+      confirmBtn.removeEventListener('click', doRename);
+      cancelBtn.removeEventListener('click', doCancel);
+      input.removeEventListener('keydown', onKey);
+    }
+
+    function doCancel() {
+      modal.style.display = 'none';
+      cleanup();
+    }
+
+    function onKey(e) {
+      if (e.key === 'Enter') doRename();
+      else if (e.key === 'Escape') doCancel();
+    }
+
+    confirmBtn.addEventListener('click', doRename);
+    cancelBtn.addEventListener('click', doCancel);
+    input.addEventListener('keydown', onKey);
+  }
+
+  function duplicateTab(tabId) {
+    const tab = tabs.find(function(t) { return t.id === tabId; });
+    if (!tab) return;
+    if (tabs.length >= 20) {
+      alert('Maximum of 20 tabs reached. Please close an existing tab to open a new one.');
+      return;
+    }
+    saveCurrentTabState();
+    const dupTitle = tab.title + ' (copy)';
+    const dup = createTab(tab.content, dupTitle, tab.viewMode);
+    const idx = tabs.findIndex(function(t) { return t.id === tabId; });
+    tabs.splice(idx + 1, 0, dup);
+    switchTab(dup.id);
+  }
+
+  function resetAllTabs() {
+    const modal = document.getElementById('reset-confirm-modal');
+    const confirmBtn = document.getElementById('reset-modal-confirm');
+    const cancelBtn = document.getElementById('reset-modal-cancel');
+    if (!modal) return;
+    modal.style.display = 'flex';
+
+    function doReset() {
+      modal.style.display = 'none';
+      cleanup();
+      tabs = [];
+      untitledCounter = 0;
+      saveUntitledCounter(0);
+      const welcome = createTab(sampleMarkdown, 'Welcome to Markdown');
+      tabs.push(welcome);
+      activeTabId = welcome.id;
+      saveActiveTabId(activeTabId);
+      saveTabsToStorage(tabs);
+      markdownEditor.value = sampleMarkdown;
+      restoreViewMode('split');
+      renderMarkdown();
+      renderTabBar(tabs, activeTabId);
+    }
+
+    function doCancel() {
+      modal.style.display = 'none';
+      cleanup();
+    }
+
+    function cleanup() {
+      confirmBtn.removeEventListener('click', doReset);
+      cancelBtn.removeEventListener('click', doCancel);
+    }
+
+    confirmBtn.addEventListener('click', doReset);
+    cancelBtn.addEventListener('click', doCancel);
+  }
+
   function initTabs() {
+    untitledCounter = loadUntitledCounter();
     tabs = loadTabsFromStorage();
     activeTabId = loadActiveTabId();
     if (tabs.length === 0) {
-      const tab = createTab(sampleMarkdown);
+      const tab = createTab(sampleMarkdown, 'Welcome to Markdown');
       tabs.push(tab);
       activeTabId = tab.id;
       saveTabsToStorage(tabs);
@@ -960,8 +1093,6 @@ This is a fully client-side application. Your content never leaves your browser 
     debouncedRender();
     clearTimeout(saveTabStateTimeout);
     saveTabStateTimeout = setTimeout(saveCurrentTabState, 500);
-    clearTimeout(updateTitleTimeout);
-    updateTitleTimeout = setTimeout(updateActiveTabTitle, 800);
   });
   
   // Tab key handler to insert indentation instead of moving focus
@@ -1860,7 +1991,6 @@ This is a fully client-side application. Your content never leaves your browser 
       markdownEditor.value = decoded;
       renderMarkdown();
       saveCurrentTabState();
-      updateActiveTabTitle();
     } catch (e) {
       console.error("Failed to load shared content:", e);
       alert("The shared URL could not be decoded. It may be corrupted or incomplete.");
@@ -1953,10 +2083,8 @@ This is a fully client-side application. Your content never leaves your browser 
     }
     // Close tab
     if ((e.ctrlKey || e.metaKey) && e.key === "w") {
-      if (tabs.length > 1) {
-        e.preventDefault();
-        closeTab(activeTabId);
-      }
+      e.preventDefault();
+      closeTab(activeTabId);
     }
     // Close Mermaid zoom modal with Escape
     if (e.key === "Escape") {
@@ -1964,8 +2092,8 @@ This is a fully client-side application. Your content never leaves your browser 
     }
   });
 
-  document.getElementById('tab-new-btn').addEventListener('click', function() {
-    newTab();
+  document.getElementById('tab-reset-btn').addEventListener('click', function() {
+    resetAllTabs();
   });
 
   // ========================================

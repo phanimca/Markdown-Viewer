@@ -213,9 +213,32 @@
         <!-- Tab Bar -->
         <div class="tab-bar" id="tab-bar" role="tablist" aria-label="Document tabs">
           <div class="tab-list" id="tab-list"></div>
-          <button class="tab-new-btn" id="tab-new-btn" title="New Tab (Ctrl+T)" aria-label="Open new tab">
-            <i class="bi bi-plus-lg"></i>
+          <button class="tab-reset-btn" id="tab-reset-btn" title="Reset all files" aria-label="Reset all files">
+            <i class="bi bi-arrow-counterclockwise"></i> Reset
           </button>
+        </div>
+
+        <!-- Reset Confirmation Modal -->
+        <div id="reset-confirm-modal" class="reset-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="reset-modal-title" style="display:none;">
+          <div class="reset-modal-box">
+            <p id="reset-modal-title" class="reset-modal-message">Are you sure you want to delete all files?</p>
+            <div class="reset-modal-actions">
+              <button class="reset-modal-btn reset-modal-cancel" id="reset-modal-cancel">Cancel</button>
+              <button class="reset-modal-btn reset-modal-confirm" id="reset-modal-confirm">Delete All</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rename Modal -->
+        <div id="rename-modal" class="reset-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="rename-modal-title" style="display:none;">
+          <div class="reset-modal-box">
+            <p id="rename-modal-title" class="reset-modal-message">Rename file</p>
+            <input type="text" id="rename-modal-input" class="rename-modal-input" placeholder="File name" />
+            <div class="reset-modal-actions">
+              <button class="reset-modal-btn reset-modal-cancel" id="rename-modal-cancel">Cancel</button>
+              <button class="reset-modal-btn reset-modal-confirm" id="rename-modal-confirm">Rename</button>
+            </div>
+          </div>
         </div>
 
         <div id="dropzone" class="dropzone container-fluid mt-2">

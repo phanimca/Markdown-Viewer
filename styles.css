@@ -1351,3 +1351,198 @@ a:focus {
   }
 }
 
+/* ========================================
+   THREE-DOT TAB MENU
+   ======================================== */
+
+.tab-menu-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  background: none;
+  border: none;
+  color: var(--text-color);
+  cursor: pointer;
+  padding: 0;
+  font-size: 14px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  opacity: 0;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+  position: relative;
+}
+
+.tab-item:hover .tab-menu-btn,
+.tab-item.active .tab-menu-btn {
+  opacity: 0.65;
+}
+
+.tab-menu-btn:hover {
+  background-color: var(--button-active);
+  opacity: 1 !important;
+}
+
+.tab-menu-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 130px;
+  background-color: var(--header-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 1000;
+  overflow: hidden;
+  flex-direction: column;
+}
+
+.tab-menu-btn.open .tab-menu-dropdown {
+  display: flex;
+}
+
+.tab-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 12px;
+  background: none;
+  border: none;
+  color: var(--text-color);
+  font-size: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.12s ease;
+  white-space: nowrap;
+}
+
+.tab-menu-item:hover {
+  background-color: var(--button-hover);
+}
+
+.tab-menu-item-danger {
+  color: var(--color-danger-fg, #d73a49);
+}
+
+.tab-menu-item-danger:hover {
+  background-color: rgba(215, 58, 73, 0.1);
+}
+
+/* ========================================
+   RESET BUTTON
+   ======================================== */
+
+.tab-reset-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 5px;
+  background: none;
+  border: 1px solid var(--border-color);
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 12px;
+  flex-shrink: 0;
+  margin-left: 6px;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.tab-reset-btn:hover {
+  background-color: rgba(215, 58, 73, 0.1);
+  border-color: var(--color-danger-fg, #d73a49);
+  color: var(--color-danger-fg, #d73a49);
+}
+
+/* ========================================
+   RESET & RENAME CONFIRMATION MODALS
+   ======================================== */
+
+.reset-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.reset-modal-box {
+  background: var(--header-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 24px 28px;
+  min-width: 280px;
+  max-width: 360px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.reset-modal-message {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-color);
+  font-weight: 500;
+  text-align: center;
+}
+
+.reset-modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.reset-modal-btn {
+  padding: 6px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--button-bg);
+  color: var(--text-color);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.reset-modal-btn:hover {
+  background-color: var(--button-hover);
+}
+
+.reset-modal-confirm {
+  background-color: var(--color-danger-fg, #d73a49);
+  border-color: var(--color-danger-fg, #d73a49);
+  color: #fff;
+}
+
+.reset-modal-confirm:hover {
+  background-color: #b02a37;
+  border-color: #b02a37;
+}
+
+/* ========================================
+   RENAME MODAL INPUT
+   ======================================== */
+
+.rename-modal-input {
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-color);
+  color: var(--text-color);
+  font-size: 13px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.rename-modal-input:focus {
+  border-color: var(--accent-color);
+}
+
