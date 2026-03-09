@@ -697,6 +697,103 @@ a:focus {
   margin-bottom: 0;
 }
 
+/* Mobile document tabs section */
+.mobile-tabs-section {
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0.75rem;
+}
+
+.mobile-tabs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.mobile-tabs-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-color);
+  opacity: 0.8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mobile-new-tab-btn {
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  color: var(--text-color);
+  padding: 2px 7px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: background-color 0.15s ease;
+}
+
+.mobile-new-tab-btn:hover {
+  background-color: var(--button-hover);
+}
+
+.mobile-tab-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.mobile-tab-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--button-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.9rem;
+  color: var(--text-color);
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+  gap: 0.5rem;
+}
+
+.mobile-tab-item:hover {
+  background-color: var(--button-hover);
+}
+
+.mobile-tab-item.active {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+  background-color: var(--bg-color);
+}
+
+.mobile-tab-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.mobile-tab-item .tab-menu-btn {
+  opacity: 0.6;
+}
+
+.mobile-tab-item:hover .tab-menu-btn,
+.mobile-tab-item.active .tab-menu-btn {
+  opacity: 0.8;
+}
+
+#mobile-tab-reset-btn {
+  margin-left: 0;
+  height: auto;
+  padding: 0.45rem 0.75rem;
+  justify-content: center;
+  font-size: 0.9rem;
+}
+
 /* hide desktop-only stats and toolbar on mobile */
 @media (max-width: 767px) {
   .stats-container.d-none.d-md-flex,

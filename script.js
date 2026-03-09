@@ -469,6 +469,84 @@ This is a fully client-side application. Your content never leaves your browser 
     if (activeItem) {
       activeItem.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     }
+
+    renderMobileTabList(tabsArr, currentActiveTabId);
+  }
+
+  function renderMobileTabList(tabsArr, currentActiveTabId) {
+    const mobileTabList = document.getElementById('mobile-tab-list');
+    if (!mobileTabList) return;
+    mobileTabList.innerHTML = '';
+    tabsArr.forEach(function(tab) {
+      const item = document.createElement('div');
+      item.className = 'mobile-tab-item' + (tab.id === currentActiveTabId ? ' active' : '');
+      item.setAttribute('role', 'tab');
+      item.setAttribute('aria-selected', tab.id === currentActiveTabId ? 'true' : 'false');
+      item.setAttribute('data-tab-id', tab.id);
+
+      const titleSpan = document.createElement('span');
+      titleSpan.className = 'mobile-tab-title';
+      titleSpan.textContent = tab.title || 'Untitled';
+      titleSpan.title = tab.title || 'Untitled';
+
+      // Three-dot menu button (same as desktop)
+      const menuBtn = document.createElement('button');
+      menuBtn.className = 'tab-menu-btn';
+      menuBtn.setAttribute('aria-label', 'File options');
+      menuBtn.title = 'File options';
+      menuBtn.innerHTML = '&#8943;';
+
+      // Dropdown (same as desktop)
+      const dropdown = document.createElement('div');
+      dropdown.className = 'tab-menu-dropdown';
+      dropdown.innerHTML =
+        '<button class="tab-menu-item" data-action="rename"><i class="bi bi-pencil"></i> Rename</button>' +
+        '<button class="tab-menu-item" data-action="duplicate"><i class="bi bi-files"></i> Duplicate</button>' +
+        '<button class="tab-menu-item tab-menu-item-danger" data-action="delete"><i class="bi bi-trash"></i> Delete</button>';
+
+      menuBtn.appendChild(dropdown);
+
+      menuBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        document.querySelectorAll('.tab-menu-btn.open').forEach(function(btn) {
+          if (btn !== menuBtn) btn.classList.remove('open');
+        });
+        menuBtn.classList.toggle('open');
+        if (menuBtn.classList.contains('open')) {
+          const rect = menuBtn.getBoundingClientRect();
+          dropdown.style.top = (rect.bottom + 4) + 'px';
+          dropdown.style.right = (window.innerWidth - rect.right) + 'px';
+          dropdown.style.left = 'auto';
+        }
+      });
+
+      dropdown.querySelectorAll('.tab-menu-item').forEach(function(actionBtn) {
+        actionBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          menuBtn.classList.remove('open');
+          const action = actionBtn.getAttribute('data-action');
+          if (action === 'rename') {
+            closeMobileMenu();
+            renameTab(tab.id);
+          } else if (action === 'duplicate') {
+            duplicateTab(tab.id);
+            closeMobileMenu();
+          } else if (action === 'delete') {
+            deleteTab(tab.id);
+          }
+        });
+      });
+
+      item.appendChild(titleSpan);
+      item.appendChild(menuBtn);
+
+      item.addEventListener('click', function() {
+        switchTab(tab.id);
+        closeMobileMenu();
+      });
+
+      mobileTabList.appendChild(item);
+    });
   }
 
   // Close any open tab dropdown when clicking elsewhere in the document
@@ -1071,6 +1149,22 @@ This is a fully client-side application. Your content never leaves your browser 
     themeToggle.click();
     mobileThemeToggle.innerHTML = themeToggle.innerHTML + " Toggle Dark Mode";
   });
+
+  const mobileNewTabBtn = document.getElementById("mobile-new-tab-btn");
+  if (mobileNewTabBtn) {
+    mobileNewTabBtn.addEventListener("click", function() {
+      newTab();
+      closeMobileMenu();
+    });
+  }
+
+  const mobileTabResetBtn = document.getElementById("mobile-tab-reset-btn");
+  if (mobileTabResetBtn) {
+    mobileTabResetBtn.addEventListener("click", function() {
+      closeMobileMenu();
+      resetAllTabs();
+    });
+  }
   
   initTabs();
   updateMobileStats();
