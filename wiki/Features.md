@@ -167,6 +167,7 @@ Generates a PDF of the current preview using **jsPDF** + **html2canvas**. Comple
 
 - **Drag & Drop**: Drag any `.md` file onto the editor pane.
 - **File Picker**: Click the Import button to open the OS file dialog.
+- **GitHub Import**: Paste a public GitHub repository/folder/file link to discover and import Markdown files.
 
 Supported extensions: `.md`, `.markdown`.
 

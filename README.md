@@ -24,7 +24,7 @@ Markdown Viewer is a professional, full-featured Markdown editor and preview app
 - **Mermaid diagrams** - Create diagrams and flowcharts within your Markdown; hover over any diagram to reveal a toolbar for zooming, downloading (PNG/SVG), and copying to clipboard
 - **Dark mode toggle** - Switch between light and dark themes for comfortable viewing
 - **Export options** - Download your content as Markdown, HTML, or PDF
-- **Import Markdown files** - Drag & drop or select files to open
+- **Import Markdown files** - Drag & drop, select local files, or import from public GitHub links
 - **Copy to clipboard** - Quickly copy your Markdown content with one click
 - **Sync scrolling** - Keep editor and preview panes aligned (toggleable)
 - **Content statistics** - Track word count, character count, and reading time
@@ -51,7 +51,7 @@ Markdown Viewer is a professional, full-featured Markdown editor and preview app
 
 1. **Writing Markdown** - Type or paste Markdown content in the left editor panel
 2. **Viewing Output** - See the rendered HTML in the right preview panel
-3. **Importing Files** - Click "Import" or drag and drop .md files into the interface
+3. **Importing Files** - Click "Import" for local files, use "GitHub Import" for repository links, or drag and drop .md files
 4. **Exporting Content** - Use the "Export" dropdown to download as MD, HTML, or PDF
 5. **Toggle Dark Mode** - Click the moon icon to switch between light and dark themes
 6. **Toggle Sync Scrolling** - Enable/disable synchronized scrolling between panels
