@@ -56,7 +56,7 @@ When you first open the application, the editor contains a sample document demon
 
 ## Importing Files
 
-You can load an existing `.md` file into the editor in two ways:
+You can load Markdown into the editor in three ways:
 
 ### Drag & Drop
 
@@ -67,6 +67,16 @@ Drag a `.md` file from your file explorer directly onto the **editor pane**. The
 1. Click the **📂 Import** button in the toolbar.
 2. Select a `.md` file in the file picker dialog.
 3. The file content is loaded into the editor.
+
+### GitHub Import
+
+1. Click **GitHub Import** in the toolbar (or in the mobile menu).
+2. Paste a public GitHub URL:
+   - Repository URL (for example: `https://github.com/owner/repo`)
+   - Folder URL (for example: `https://github.com/owner/repo/tree/main/docs`)
+   - Markdown file URL (for example: `https://github.com/owner/repo/blob/main/README.md`)
+3. If multiple Markdown files are found, choose the file number from the prompt list.
+4. The selected file is opened in a new tab.
 
 > **Tip**: Only `.md` and `.markdown` files are accepted.
 

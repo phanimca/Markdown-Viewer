@@ -14,6 +14,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const markdownPreview = document.getElementById("markdown-preview");
   const themeToggle = document.getElementById("theme-toggle");
   const importButton = document.getElementById("import-button");
+  const importGithubButton = document.getElementById("import-github-button");
   const fileInput = document.getElementById("file-input");
   const exportMd = document.getElementById("export-md");
   const exportHtml = document.getElementById("export-html");
@@ -52,6 +53,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const mobileCharCount     = document.getElementById("mobile-char-count");
   const mobileToggleSync    = document.getElementById("mobile-toggle-sync");
   const mobileImportBtn     = document.getElementById("mobile-import-button");
+  const mobileImportGithubBtn = document.getElementById("mobile-import-github-button");
   const mobileExportMd      = document.getElementById("mobile-export-md");
   const mobileExportHtml    = document.getElementById("mobile-export-html");
   const mobileExportPdf     = document.getElementById("mobile-export-pdf");
@@ -812,6 +814,178 @@ This is a fully client-side application. Your content never leaves your browser 
     reader.readAsText(file);
   }
 
+  function isMarkdownPath(path) {
+    return /\.(md|markdown)$/i.test(path || "");
+  }
+
+  function getFileName(path) {
+    return (path || "").split("/").pop() || "document.md";
+  }
+
+  function buildRawGitHubUrl(owner, repo, ref, filePath) {
+    const encodedPath = filePath
+      .split("/")
+      .map((part) => encodeURIComponent(part))
+      .join("/");
+    return `https://raw.githubusercontent.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(ref)}/${encodedPath}`;
+  }
+
+  async function fetchGitHubJson(url) {
+    const response = await fetch(url, {
+      headers: {
+        Accept: "application/vnd.github+json"
+      }
+    });
+    if (!response.ok) {
+      throw new Error(`GitHub API request failed (${response.status})`);
+    }
+    return response.json();
+  }
+
+  async function fetchTextContent(url) {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch file (${response.status})`);
+    }
+    return response.text();
+  }
+
+  function parseGitHubImportUrl(input) {
+    let parsedUrl;
+    try {
+      parsedUrl = new URL((input || "").trim());
+    } catch (_) {
+      return null;
+    }
+
+    const host = parsedUrl.hostname.replace(/^www\./, "");
+    const segments = parsedUrl.pathname.split("/").filter(Boolean);
+
+    if (host === "raw.githubusercontent.com") {
+      if (segments.length < 5) return null;
+      const [owner, repo, ref, ...rest] = segments;
+      const filePath = rest.join("/");
+      return { owner, repo, ref, type: "file", filePath };
+    }
+
+    if (host !== "github.com" || segments.length < 2) return null;
+
+    const owner = segments[0];
+    const repo = segments[1].replace(/\.git$/i, "");
+    if (segments.length === 2) {
+      return { owner, repo, type: "repo" };
+    }
+
+    const mode = segments[2];
+    if (mode === "blob" && segments.length >= 5) {
+      return {
+        owner,
+        repo,
+        type: "file",
+        ref: segments[3],
+        filePath: segments.slice(4).join("/")
+      };
+    }
+
+    if (mode === "tree" && segments.length >= 4) {
+      return {
+        owner,
+        repo,
+        type: "tree",
+        ref: segments[3],
+        basePath: segments.slice(4).join("/")
+      };
+    }
+
+    return { owner, repo, type: "repo" };
+  }
+
+  async function getDefaultBranch(owner, repo) {
+    const repoInfo = await fetchGitHubJson(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`);
+    return repoInfo.default_branch;
+  }
+
+  async function listMarkdownFiles(owner, repo, ref, basePath) {
+    const treeResponse = await fetchGitHubJson(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/trees/${encodeURIComponent(ref)}?recursive=1`);
+    const normalizedBasePath = (basePath || "").replace(/^\/+|\/+$/g, "");
+
+    return (treeResponse.tree || [])
+      .filter((entry) => entry.type === "blob" && isMarkdownPath(entry.path))
+      .filter((entry) => !normalizedBasePath || entry.path === normalizedBasePath || entry.path.startsWith(normalizedBasePath + "/"))
+      .map((entry) => entry.path)
+      .sort((a, b) => a.localeCompare(b));
+  }
+
+  function setGitHubImportLoading(isLoading) {
+    [importGithubButton, mobileImportGithubBtn].forEach((btn) => {
+      if (!btn) return;
+      if (!btn.dataset.originalText) {
+        btn.dataset.originalText = btn.innerHTML;
+      }
+      btn.disabled = isLoading;
+      btn.innerHTML = isLoading ? '<i class="bi bi-hourglass-split"></i> Importing...' : btn.dataset.originalText;
+    });
+  }
+
+  async function importMarkdownFromGitHub() {
+    const urlInput = prompt("Enter a GitHub repository, folder, or Markdown file URL:");
+    if (!urlInput) return;
+
+    const parsed = parseGitHubImportUrl(urlInput);
+    if (!parsed || !parsed.owner || !parsed.repo) {
+      alert("Please enter a valid GitHub URL.");
+      return;
+    }
+
+    setGitHubImportLoading(true);
+    try {
+      if (parsed.type === "file") {
+        if (!isMarkdownPath(parsed.filePath)) {
+          throw new Error("The provided URL does not point to a Markdown file.");
+        }
+        const markdown = await fetchTextContent(buildRawGitHubUrl(parsed.owner, parsed.repo, parsed.ref, parsed.filePath));
+        newTab(markdown, getFileName(parsed.filePath).replace(/\.(md|markdown)$/i, ""));
+        return;
+      }
+
+      const ref = parsed.ref || await getDefaultBranch(parsed.owner, parsed.repo);
+      const files = await listMarkdownFiles(parsed.owner, parsed.repo, ref, parsed.basePath || "");
+
+      if (!files.length) {
+        alert("No Markdown files were found at that GitHub location.");
+        return;
+      }
+
+      let targetPath = files[0];
+      if (files.length > 1) {
+        const maxShown = Math.min(files.length, 30);
+        const choices = files
+          .slice(0, maxShown)
+          .map((file, index) => `${index + 1}. ${file}`)
+          .join("\n");
+        const choice = prompt(
+          `Found ${files.length} Markdown files.\nEnter a number to import:\n\n${choices}${files.length > maxShown ? "\n..." : ""}`,
+          "1"
+        );
+
+        if (choice === null) return;
+        const selectedIndex = Number(choice) - 1;
+        if (!Number.isInteger(selectedIndex) || selectedIndex < 0 || selectedIndex >= maxShown) {
+          throw new Error(`Please enter a number between 1 and ${maxShown}.`);
+        }
+        targetPath = files[selectedIndex];
+      }
+
+      const markdown = await fetchTextContent(buildRawGitHubUrl(parsed.owner, parsed.repo, ref, targetPath));
+      newTab(markdown, getFileName(targetPath).replace(/\.(md|markdown)$/i, ""));
+    } catch (error) {
+      console.error("GitHub import failed:", error);
+      alert("GitHub import failed: " + error.message);
+    } finally {
+      setGitHubImportLoading(false);
+    }
+  }
+
   function processEmojis(element) {
     const walker = document.createTreeWalker(
       element,
@@ -1141,6 +1315,9 @@ This is a fully client-side application. Your content never leaves your browser 
     }
   });
   mobileImportBtn.addEventListener("click", () => fileInput.click());
+  mobileImportGithubBtn.addEventListener("click", () => {
+    importMarkdownFromGitHub().finally(closeMobileMenu);
+  });
   mobileExportMd.addEventListener("click", () => exportMd.click());
   mobileExportHtml.addEventListener("click", () => exportHtml.click());
   mobileExportPdf.addEventListener("click", () => exportPdf.click());
@@ -1241,6 +1418,10 @@ This is a fully client-side application. Your content never leaves your browser 
 
   importButton.addEventListener("click", function () {
     fileInput.click();
+  });
+
+  importGithubButton.addEventListener("click", function () {
+    importMarkdownFromGitHub();
   });
 
   fileInput.addEventListener("change", function (e) {
