@@ -935,8 +935,10 @@ This is a fully client-side application. Your content never leaves your browser 
     }
   }
 
-  function setGitHubImportError(message) {
+  function setGitHubImportMessage(message, options = {}) {
     if (!githubImportError) return;
+    const { isError = true } = options;
+    githubImportError.classList.toggle("is-info", !isError);
     if (!message) {
       githubImportError.textContent = "";
       githubImportError.style.display = "none";
@@ -962,7 +964,7 @@ This is a fully client-side application. Your content never leaves your browser 
     delete githubImportSubmitBtn.dataset.repo;
     delete githubImportSubmitBtn.dataset.ref;
     githubImportSubmitBtn.textContent = "Import";
-    setGitHubImportError("");
+    setGitHubImportMessage("");
   }
 
   function openGitHubImportModal() {
@@ -987,7 +989,7 @@ This is a fully client-side application. Your content never leaves your browser 
       const repo = githubImportSubmitBtn.dataset.repo;
       const ref = githubImportSubmitBtn.dataset.ref;
       if (!owner || !repo || !ref || !selectedPath) {
-        setGitHubImportError("Please select a file to import.");
+        setGitHubImportMessage("Please select a file to import.");
         return;
       }
       setGitHubImportLoading(true);
@@ -999,7 +1001,7 @@ This is a fully client-side application. Your content never leaves your browser 
         closeGitHubImportModal();
       } catch (error) {
         console.error("GitHub import failed:", error);
-        setGitHubImportError("GitHub import failed: " + error.message);
+        setGitHubImportMessage("GitHub import failed: " + error.message);
       } finally {
         githubImportSubmitBtn.disabled = false;
         githubImportCancelBtn.disabled = false;
@@ -1010,17 +1012,17 @@ This is a fully client-side application. Your content never leaves your browser 
 
     const urlInput = githubImportUrlInput.value.trim();
     if (!urlInput) {
-      setGitHubImportError("Please enter a GitHub URL.");
+      setGitHubImportMessage("Please enter a GitHub URL.");
       return;
     }
 
     const parsed = parseGitHubImportUrl(urlInput);
     if (!parsed || !parsed.owner || !parsed.repo) {
-      setGitHubImportError("Please enter a valid GitHub URL.");
+      setGitHubImportMessage("Please enter a valid GitHub URL.");
       return;
     }
 
-    setGitHubImportError("");
+    setGitHubImportMessage("");
     setGitHubImportLoading(true);
     githubImportSubmitBtn.disabled = true;
     githubImportCancelBtn.disabled = true;
@@ -1039,13 +1041,13 @@ This is a fully client-side application. Your content never leaves your browser 
       const files = await listMarkdownFiles(parsed.owner, parsed.repo, ref, parsed.basePath || "");
 
       if (!files.length) {
-        setGitHubImportError("No Markdown files were found at that GitHub location.");
+        setGitHubImportMessage("No Markdown files were found at that GitHub location.");
         return;
       }
 
       const shownFiles = files.slice(0, MAX_GITHUB_FILES_SHOWN);
-      if (shownFiles.length === 1) {
-        const targetPath = shownFiles[0];
+      if (files.length === 1) {
+        const targetPath = files[0];
         const markdown = await fetchTextContent(buildRawGitHubUrl(parsed.owner, parsed.repo, ref, targetPath));
         newTab(markdown, getFileName(targetPath).replace(/\.(md|markdown)$/i, ""));
         closeGitHubImportModal();
@@ -1062,9 +1064,9 @@ This is a fully client-side application. Your content never leaves your browser 
         githubImportFileSelect.appendChild(option);
       });
       if (files.length > MAX_GITHUB_FILES_SHOWN) {
-        setGitHubImportError(`Showing first ${MAX_GITHUB_FILES_SHOWN} of ${files.length} Markdown files.`);
+        setGitHubImportMessage(`Showing first ${MAX_GITHUB_FILES_SHOWN} of ${files.length} Markdown files.`, { isError: false });
       } else {
-        setGitHubImportError("");
+        setGitHubImportMessage("");
       }
       if (githubImportTitle) {
         githubImportTitle.textContent = "Select a Markdown file to import";
@@ -1076,7 +1078,7 @@ This is a fully client-side application. Your content never leaves your browser 
       githubImportSubmitBtn.textContent = "Import Selected";
     } catch (error) {
       console.error("GitHub import failed:", error);
-      setGitHubImportError("GitHub import failed: " + error.message);
+      setGitHubImportMessage("GitHub import failed: " + error.message);
     } finally {
       githubImportSubmitBtn.disabled = false;
       githubImportCancelBtn.disabled = false;

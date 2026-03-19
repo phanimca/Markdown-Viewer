@@ -1649,3 +1649,7 @@ a:focus {
   color: var(--color-danger-fg, #d73a49);
   text-align: left;
 }
+
+.github-import-error.is-info {
+  color: var(--text-secondary, #57606a);
+}
