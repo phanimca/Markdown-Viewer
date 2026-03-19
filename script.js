@@ -817,6 +817,7 @@ This is a fully client-side application. Your content never leaves your browser 
   function isMarkdownPath(path) {
     return /\.(md|markdown)$/i.test(path || "");
   }
+  const MAX_GITHUB_FILES_SHOWN = 30;
 
   function getFileName(path) {
     return (path || "").split("/").pop() || "document.md";
@@ -958,20 +959,20 @@ This is a fully client-side application. Your content never leaves your browser 
 
       let targetPath = files[0];
       if (files.length > 1) {
-        const maxShown = Math.min(files.length, 30);
+        const maxShown = Math.min(files.length, MAX_GITHUB_FILES_SHOWN);
         const choices = files
           .slice(0, maxShown)
           .map((file, index) => `${index + 1}. ${file}`)
           .join("\n");
         const choice = prompt(
-          `Found ${files.length} Markdown files.\nEnter a number to import:\n\n${choices}${files.length > maxShown ? "\n..." : ""}`,
+          `Found ${files.length} Markdown files.\nEnter a number to import (showing first ${maxShown}):\n\n${choices}${files.length > maxShown ? "\n..." : ""}`,
           "1"
         );
 
         if (choice === null) return;
         const selectedIndex = Number(choice) - 1;
         if (!Number.isInteger(selectedIndex) || selectedIndex < 0 || selectedIndex >= maxShown) {
-          throw new Error(`Please enter a number between 1 and ${maxShown}.`);
+          throw new Error(`Please enter a number between 1 and ${maxShown} (from the displayed list).`);
         }
         targetPath = files[selectedIndex];
       }
