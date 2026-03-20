@@ -832,6 +832,7 @@ This is a fully client-side application. Your content never leaves your browser 
   const GITHUB_IMPORT_MIN_REQUEST_INTERVAL_MS = 800;
   let lastGitHubImportRequestAt = 0;
   const selectedGitHubImportPaths = new Set();
+  let availableGitHubImportPaths = [];
 
   function getFileName(path) {
     return (path || "").split("/").pop() || "document.md";
@@ -962,8 +963,8 @@ This is a fully client-side application. Your content never leaves your browser 
   }
 
   function updateGitHubSelectAllButtonLabel() {
-    if (!githubImportSelectAllBtn || !githubImportFileSelect) return;
-    const total = githubImportFileSelect.options.length;
+    if (!githubImportSelectAllBtn) return;
+    const total = availableGitHubImportPaths.length;
     const allSelected = total > 0 && selectedGitHubImportPaths.size === total;
     githubImportSelectAllBtn.textContent = allSelected ? "Clear All" : "Select All";
   }
@@ -1002,7 +1003,7 @@ This is a fully client-side application. Your content never leaves your browser 
     githubImportTree.innerHTML = "";
     const tree = buildMarkdownFileTree(paths);
 
-    const createBranch = function(node, parentPath) {
+    const createTreeBranch = function(node, parentPath) {
       const list = document.createElement("ul");
       const folderNames = Object.keys(node.folders).sort((a, b) => a.localeCompare(b));
       folderNames.forEach((folderName) => {
@@ -1012,7 +1013,7 @@ This is a fully client-side application. Your content never leaves your browser 
         folderLabel.className = "github-tree-folder-label";
         folderLabel.textContent = `📁 ${folderName}`;
         item.appendChild(folderLabel);
-        item.appendChild(createBranch(node.folders[folderName], folderPath));
+        item.appendChild(createTreeBranch(node.folders[folderName], folderPath));
         list.appendChild(item);
       });
 
@@ -1036,7 +1037,7 @@ This is a fully client-side application. Your content never leaves your browser 
       return list;
     };
 
-    githubImportTree.appendChild(createBranch(tree, ""));
+    githubImportTree.appendChild(createTreeBranch(tree, ""));
     syncGitHubSelectionToButtons();
   }
 
@@ -1078,6 +1079,7 @@ This is a fully client-side application. Your content never leaves your browser 
     if (githubImportSelectionToolbar) {
       githubImportSelectionToolbar.style.display = "none";
     }
+    availableGitHubImportPaths = [];
     setGitHubSelectedPaths([]);
     if (githubImportTree) {
       githubImportTree.innerHTML = "";
@@ -1201,6 +1203,7 @@ This is a fully client-side application. Your content never leaves your browser 
         option.textContent = filePath;
         githubImportFileSelect.appendChild(option);
       });
+      availableGitHubImportPaths = shownFiles.slice();
       setGitHubSelectedPaths(shownFiles[0] ? [shownFiles[0]] : []);
       renderGitHubImportTree(shownFiles);
       if (files.length > MAX_GITHUB_FILES_SHOWN) {
@@ -1692,7 +1695,7 @@ This is a fully client-side application. Your content never leaves your browser 
   }
   if (githubImportSelectAllBtn) {
     githubImportSelectAllBtn.addEventListener("click", function() {
-      const allPaths = Array.from(githubImportFileSelect.options).map((option) => option.value);
+      const allPaths = availableGitHubImportPaths.slice();
       const shouldSelectAll = selectedGitHubImportPaths.size !== allPaths.length;
       setGitHubSelectedPaths(shouldSelectAll ? allPaths : []);
     });
