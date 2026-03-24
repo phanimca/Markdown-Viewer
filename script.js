@@ -13,8 +13,10 @@ document.addEventListener("DOMContentLoaded", function () {
   const markdownEditor = document.getElementById("markdown-editor");
   const markdownPreview = document.getElementById("markdown-preview");
   const themeToggle = document.getElementById("theme-toggle");
-  const importFromFileButton = document.getElementById("import-from-file");
-  const importFromGithubButton = document.getElementById("import-from-github");
+  const openButton = document.getElementById("open-button");
+  const saveButton = document.getElementById("save-button");
+  const insertAdoTocButton = document.getElementById("insert-ado-toc");
+  const insertAdoNoteButton = document.getElementById("insert-ado-note");
   const fileInput = document.getElementById("file-input");
   const exportMd = document.getElementById("export-md");
   const exportHtml = document.getElementById("export-html");
@@ -52,26 +54,15 @@ document.addEventListener("DOMContentLoaded", function () {
   const mobileWordCount     = document.getElementById("mobile-word-count");
   const mobileCharCount     = document.getElementById("mobile-char-count");
   const mobileToggleSync    = document.getElementById("mobile-toggle-sync");
-  const mobileImportBtn     = document.getElementById("mobile-import-button");
-  const mobileImportGithubBtn = document.getElementById("mobile-import-github-button");
+  const mobileOpenBtn       = document.getElementById("mobile-open-button");
+  const mobileSaveBtn       = document.getElementById("mobile-save-button");
+  const mobileInsertAdoTocBtn = document.getElementById("mobile-insert-ado-toc");
+  const mobileInsertAdoNoteBtn = document.getElementById("mobile-insert-ado-note");
   const mobileExportMd      = document.getElementById("mobile-export-md");
   const mobileExportHtml    = document.getElementById("mobile-export-html");
   const mobileExportPdf     = document.getElementById("mobile-export-pdf");
   const mobileCopyMarkdown  = document.getElementById("mobile-copy-markdown");
   const mobileThemeToggle   = document.getElementById("mobile-theme-toggle");
-  const shareButton         = document.getElementById("share-button");
-  const mobileShareButton   = document.getElementById("mobile-share-button");
-  const githubImportModal = document.getElementById("github-import-modal");
-  const githubImportTitle = document.getElementById("github-import-title");
-  const githubImportUrlInput = document.getElementById("github-import-url");
-  const githubImportFileSelect = document.getElementById("github-import-file-select");
-  const githubImportSelectionToolbar = document.getElementById("github-import-selection-toolbar");
-  const githubImportSelectedCount = document.getElementById("github-import-selected-count");
-  const githubImportSelectAllBtn = document.getElementById("github-import-select-all");
-  const githubImportTree = document.getElementById("github-import-tree");
-  const githubImportError = document.getElementById("github-import-error");
-  const githubImportCancelBtn = document.getElementById("github-import-cancel");
-  const githubImportSubmitBtn = document.getElementById("github-import-submit");
 
   // Check dark mode preference first for proper initialization
   const prefersDarkMode =
@@ -94,8 +85,8 @@ document.addEventListener("DOMContentLoaded", function () {
     mermaid.initialize({
       startOnLoad: false,
       theme: mermaidTheme,
-      securityLevel: 'loose',
-      flowchart: { useMaxWidth: true, htmlLabels: true },
+      securityLevel: 'strict',
+      flowchart: { useMaxWidth: true, htmlLabels: false },
       fontSize: 16
     });
   };
@@ -106,11 +97,13 @@ document.addEventListener("DOMContentLoaded", function () {
     console.warn("Mermaid initialization failed:", e);
   }
 
+  let currentFileName = "document.md";
+  let currentFileHandle = null;
+
   const markedOptions = {
     gfm: true,
     breaks: false,
     pedantic: false,
-    sanitize: false,
     smartypants: false,
     xhtml: false,
     headerIds: true,
@@ -134,7 +127,421 @@ document.addEventListener("DOMContentLoaded", function () {
   marked.setOptions({
     ...markedOptions,
     renderer: renderer,
+    highlight: function (code, language) {
+      if (language === 'mermaid') return code;
+      const validLanguage = hljs.getLanguage(language) ? language : "plaintext";
+      return hljs.highlight(code, { language: validLanguage }).value;
+    },
   });
+
+  function escapeHtml(text) {
+    return String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function slugifyHeading(text) {
+    return String(text)
+      .toLowerCase()
+      .trim()
+      .replace(/<[^>]*>/g, '')
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-');
+  }
+
+  function buildAdoTocHtml(markdown) {
+    const sourceWithoutCode = markdown.replace(/```[\s\S]*?```/g, '');
+    const headingRegex = /^(#{1,6})\s+(.+)$/gm;
+    const items = [];
+    let match;
+
+    while ((match = headingRegex.exec(sourceWithoutCode)) !== null) {
+      const level = match[1].length;
+      const rawText = match[2].replace(/\s+#+\s*$/, '').trim();
+      const anchor = slugifyHeading(rawText);
+      if (!anchor) continue;
+
+      items.push(`<li class="ado-toc-level-${level}"><a href="#${anchor}">${escapeHtml(rawText)}</a></li>`);
+    }
+
+    if (items.length === 0) {
+      return '<div class="ado-toc"><div class="ado-toc-title">Table of contents</div><div class="ado-toc-empty">No headings found.</div></div>';
+    }
+
+    return `<nav class="ado-toc"><div class="ado-toc-title">Table of contents</div><ul>${items.join('')}</ul></nav>`;
+  }
+
+  function transformAdoWikiLinks(markdown) {
+    return markdown.replace(/\[\[([^\]]+)\]\]/g, (fullMatch, content) => {
+      const trimmed = content.trim();
+      if (!trimmed) return fullMatch;
+      if (trimmed.toUpperCase() === '_TOC_') return fullMatch;
+
+      const pipeIndex = trimmed.indexOf('|');
+      const targetPart = pipeIndex >= 0 ? trimmed.slice(0, pipeIndex).trim() : trimmed;
+      const labelPart = pipeIndex >= 0 ? trimmed.slice(pipeIndex + 1).trim() : '';
+
+      if (!targetPart) return fullMatch;
+
+      const hashIndex = targetPart.indexOf('#');
+      const pagePart = hashIndex >= 0 ? targetPart.slice(0, hashIndex).trim() : targetPart;
+      const sectionPart = hashIndex >= 0 ? targetPart.slice(hashIndex + 1).trim() : '';
+      const label = labelPart || targetPart;
+
+      if (/^https?:\/\//i.test(targetPart)) {
+        return `[${label}](${targetPart})`;
+      }
+
+      if (targetPart.startsWith('#')) {
+        const anchorOnly = slugifyHeading(targetPart.slice(1));
+        return `[${label}](#${anchorOnly})`;
+      }
+
+      const encodedPage = encodeURIComponent(pagePart).replace(/%2F/g, '/');
+      const anchor = sectionPart ? `#${slugifyHeading(sectionPart)}` : '';
+      const href = `${encodedPage}${anchor}`;
+      return `[${label}](${href})`;
+    });
+  }
+
+  function transformAdoCallouts(markdown) {
+    const lines = markdown.split('\n');
+    const output = [];
+    let i = 0;
+
+    while (i < lines.length) {
+      const startMatch = lines[i].match(/^\s*>\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*$/i);
+      if (!startMatch) {
+        output.push(lines[i]);
+        i++;
+        continue;
+      }
+
+      const kind = startMatch[1].toLowerCase();
+      const title = startMatch[1].toUpperCase();
+      i++;
+
+      const bodyLines = [];
+      while (i < lines.length && /^\s*>/.test(lines[i])) {
+        bodyLines.push(lines[i].replace(/^\s*>\s?/, ''));
+        i++;
+      }
+
+      const bodyHtml = escapeHtml(bodyLines.join('\n').trim()).replace(/\n/g, '<br>');
+      output.push(`<div class="ado-callout ado-callout-${kind}"><div class="ado-callout-title">${title}</div><div class="ado-callout-body">${bodyHtml}</div></div>`);
+    }
+
+    return output.join('\n');
+  }
+
+  function preprocessMarkdown(markdown) {
+    if (!markdown) return markdown;
+
+    let result = markdown;
+
+    // ADO wiki TOC token support.
+    result = result.replace(/\[\[_TOC_\]\]/gi, () => buildAdoTocHtml(markdown));
+
+    // ADO wiki alerts and wiki links support.
+    result = transformAdoCallouts(result);
+    result = transformAdoWikiLinks(result);
+
+    // Support ::: mermaid containers by converting them to fenced code blocks.
+    result = result.replace(
+      /(^|\n)([ \t]{0,3}):::\s*mermaid\s*\n([\s\S]*?)\n\2:::(?=\n|$)/g,
+      (match, prefix, indent, diagramBody) => {
+        const normalizedBody = diagramBody.replace(/\n+$/, '');
+        return `${prefix}${indent}\`\`\`mermaid\n${normalizedBody}\n${indent}\`\`\``;
+      }
+    );
+
+    return result;
+  }
+
+  function applyMermaidZoom(container) {
+    const svg = container.querySelector('.mermaid svg');
+    if (!svg) return;
+
+    const zoom = parseFloat(container.dataset.zoom || '1');
+
+    const baseWidth = parseFloat(container.dataset.baseWidth || '0');
+    const baseHeight = parseFloat(container.dataset.baseHeight || '0');
+    if (!baseWidth || !baseHeight) return;
+
+    svg.style.transform = '';
+    svg.style.maxWidth = 'none';
+    svg.style.height = 'auto';
+    svg.setAttribute('width', String(Math.max(1, Math.round(baseWidth * zoom))));
+    svg.setAttribute('height', String(Math.max(1, Math.round(baseHeight * zoom))));
+
+    if (zoom > 1) {
+      container.classList.add('mermaid-zoomed');
+    } else {
+      container.classList.remove('mermaid-zoomed');
+    }
+  }
+
+  function fitMermaidToContainer(container) {
+    const baseWidth = parseFloat(container.dataset.baseWidth || '0');
+    if (!baseWidth) return;
+
+    // Reserve a small gutter for borders/scrollbars so fit does not immediately overflow.
+    const availableWidth = Math.max(1, container.clientWidth - 24);
+    const fitZoom = Math.max(0.4, Math.min(3, availableWidth / baseWidth));
+    container.dataset.zoom = String(fitZoom);
+    container.dataset.zoomMode = 'fit';
+    applyMermaidZoom(container);
+  }
+
+  async function saveMermaidAsPng(container, index) {
+    const svg = container.querySelector('.mermaid svg');
+    if (!svg) {
+      alert('Mermaid diagram is not ready yet.');
+      return;
+    }
+
+    try {
+      const svgClone = svg.cloneNode(true);
+      svgClone.removeAttribute('style');
+      svgClone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      svgClone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+
+      const rect = svg.getBoundingClientRect();
+      const viewBox = svg.viewBox && svg.viewBox.baseVal;
+      const width = Math.max(1, Math.ceil((viewBox && viewBox.width) || rect.width));
+      const height = Math.max(1, Math.ceil((viewBox && viewBox.height) || rect.height));
+
+      if (!svgClone.getAttribute('viewBox')) {
+        svgClone.setAttribute('viewBox', `0 0 ${width} ${height}`);
+      }
+      svgClone.setAttribute('width', String(width));
+      svgClone.setAttribute('height', String(height));
+
+      const svgString = new XMLSerializer().serializeToString(svgClone);
+      const svgDataUrl = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgString)}`;
+
+      const image = new Image();
+      await new Promise((resolve, reject) => {
+        image.onload = resolve;
+        image.onerror = reject;
+        image.src = svgDataUrl;
+      });
+
+      const scale = 2;
+      const canvas = document.createElement('canvas');
+      canvas.width = width * scale;
+      canvas.height = height * scale;
+
+      const context = canvas.getContext('2d');
+      const theme = document.documentElement.getAttribute('data-theme');
+      context.fillStyle = theme === 'dark' ? '#0d1117' : '#ffffff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+      // Prefer toDataURL + anchor download for better compatibility with file:// origins.
+      const pngDataUrl = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.href = pngDataUrl;
+      link.download = `mermaid-diagram-${index + 1}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Failed to export Mermaid PNG:', error);
+      alert('Failed to export Mermaid as PNG.');
+    }
+  }
+
+  function enhanceMermaidDiagrams(rootElement) {
+    const containers = rootElement.querySelectorAll('.mermaid-container');
+
+    containers.forEach((container, index) => {
+      const mermaidNode = container.querySelector('.mermaid');
+      const svg = container.querySelector('.mermaid svg');
+      if (!mermaidNode || !svg) return;
+
+      if (!container.dataset.zoom) {
+        container.dataset.zoom = '1';
+      }
+
+      if (!container.dataset.baseWidth || !container.dataset.baseHeight) {
+        const viewBox = svg.viewBox && svg.viewBox.baseVal;
+        const rect = svg.getBoundingClientRect();
+        const baseWidth = (viewBox && viewBox.width) || rect.width || 1;
+        const baseHeight = (viewBox && viewBox.height) || rect.height || 1;
+
+        container.dataset.baseWidth = String(baseWidth);
+        container.dataset.baseHeight = String(baseHeight);
+      }
+
+      if (!container.classList.contains('mermaid-enhanced')) {
+        container.classList.add('mermaid-enhanced');
+
+        const controls = document.createElement('div');
+        controls.className = 'mermaid-controls';
+        controls.innerHTML = `
+          <button type="button" class="mermaid-control-btn" data-action="zoom-out" title="Zoom Out">
+            <i class="bi bi-zoom-out"></i>
+          </button>
+          <button type="button" class="mermaid-control-btn" data-action="zoom-in" title="Zoom In">
+            <i class="bi bi-zoom-in"></i>
+          </button>
+          <button type="button" class="mermaid-control-btn" data-action="fit" title="Fit To Screen">
+            <i class="bi bi-arrows-angle-contract"></i>
+          </button>
+          <button type="button" class="mermaid-control-btn" data-action="zoom-reset" title="Reset Zoom">
+            <i class="bi bi-aspect-ratio"></i>
+          </button>
+          <button type="button" class="mermaid-control-btn" data-action="fullscreen" title="Fullscreen">
+            <i class="bi bi-arrows-fullscreen"></i>
+          </button>
+          <button type="button" class="mermaid-control-btn" data-action="save-png" title="Save as PNG">
+            <i class="bi bi-filetype-png"></i>
+          </button>
+        `;
+
+        controls.addEventListener('click', async function (event) {
+          const button = event.target.closest('button[data-action]');
+          if (!button) return;
+
+          const action = button.getAttribute('data-action');
+          const currentZoom = parseFloat(container.dataset.zoom || '1');
+
+          if (action === 'zoom-in') {
+            container.dataset.zoom = String(Math.min(3, currentZoom + 0.2));
+            container.dataset.zoomMode = 'manual';
+            applyMermaidZoom(container);
+          } else if (action === 'zoom-out') {
+            container.dataset.zoom = String(Math.max(0.4, currentZoom - 0.2));
+            container.dataset.zoomMode = 'manual';
+            applyMermaidZoom(container);
+          } else if (action === 'fit') {
+            fitMermaidToContainer(container);
+          } else if (action === 'zoom-reset') {
+            container.dataset.zoom = '1';
+            container.dataset.zoomMode = 'manual';
+            applyMermaidZoom(container);
+          } else if (action === 'fullscreen') {
+            try {
+              if (document.fullscreenElement === container) {
+                await document.exitFullscreen();
+              } else {
+                await container.requestFullscreen();
+              }
+            } catch (error) {
+              console.warn('Fullscreen not available:', error);
+            }
+          } else if (action === 'save-png') {
+            saveMermaidAsPng(container, index);
+          }
+        });
+
+        const adjustZoom = (delta) => {
+          const currentZoom = parseFloat(container.dataset.zoom || '1');
+          const nextZoom = Math.max(0.4, Math.min(3, currentZoom + delta));
+          container.dataset.zoom = String(nextZoom);
+          container.dataset.zoomMode = 'manual';
+          applyMermaidZoom(container);
+        };
+
+        container.addEventListener('wheel', function (event) {
+          // Use Ctrl/Cmd + wheel to zoom diagram without changing normal scroll behavior.
+          if (!(event.ctrlKey || event.metaKey)) return;
+
+          event.preventDefault();
+          const delta = event.deltaY < 0 ? 0.1 : -0.1;
+          adjustZoom(delta);
+        }, { passive: false });
+
+        // Extra mouse-button controls:
+        // - Side mouse buttons: back(3)=zoom out, forward(4)=zoom in
+        // - Middle click: zoom in
+        // - Shift + right click: zoom out
+        container.addEventListener('mousedown', function (event) {
+          if (event.button === 3) {
+            event.preventDefault();
+            adjustZoom(-0.2);
+          } else if (event.button === 4) {
+            event.preventDefault();
+            adjustZoom(0.2);
+          }
+        });
+
+        container.addEventListener('auxclick', function (event) {
+          if (event.button === 1) {
+            event.preventDefault();
+            adjustZoom(0.2);
+          }
+        });
+
+        container.addEventListener('contextmenu', function (event) {
+          if (event.shiftKey) {
+            event.preventDefault();
+            adjustZoom(-0.2);
+          }
+        });
+
+        container.addEventListener('pointerdown', function (event) {
+          if (event.button !== 0) return;
+
+          container.dataset.dragging = 'true';
+          container.dataset.dragStartX = String(event.clientX);
+          container.dataset.dragStartY = String(event.clientY);
+          container.dataset.dragScrollLeft = String(container.scrollLeft);
+          container.dataset.dragScrollTop = String(container.scrollTop);
+          container.classList.add('mermaid-dragging');
+          event.preventDefault();
+        });
+
+        container.addEventListener('pointermove', function (event) {
+          if (container.dataset.dragging !== 'true') return;
+
+          const startX = parseFloat(container.dataset.dragStartX || '0');
+          const startY = parseFloat(container.dataset.dragStartY || '0');
+          const startLeft = parseFloat(container.dataset.dragScrollLeft || '0');
+          const startTop = parseFloat(container.dataset.dragScrollTop || '0');
+
+          container.scrollLeft = startLeft - (event.clientX - startX);
+          container.scrollTop = startTop - (event.clientY - startY);
+        });
+
+        const stopDragging = () => {
+          if (container.dataset.dragging !== 'true') return;
+          container.dataset.dragging = 'false';
+          container.classList.remove('mermaid-dragging');
+        };
+
+        container.addEventListener('pointerup', stopDragging);
+        container.addEventListener('pointerleave', stopDragging);
+        container.addEventListener('pointercancel', stopDragging);
+
+        container.insertBefore(controls, mermaidNode);
+      }
+
+      applyMermaidZoom(container);
+    });
+  }
+
+  const SANITIZE_CONFIG = {
+    ADD_TAGS: ['mjx-container'],
+    ADD_ATTR: ['id', 'class']
+  };
+
+  const SANITIZE_CONFIG_PDF = {
+    ADD_TAGS: ['mjx-container', 'svg', 'path', 'g', 'marker', 'defs', 'pattern', 'clipPath'],
+    ADD_ATTR: ['id', 'class', 'viewBox', 'd', 'fill', 'stroke', 'transform', 'marker-end', 'marker-start']
+  };
+
+  const DEBUG_PDF_EXPORT = false;
+  function debugPdfExport(...args) {
+    if (DEBUG_PDF_EXPORT) {
+      console.log(...args);
+    }
+  }
 
   const sampleMarkdown = `# Welcome to Markdown Viewer
 
@@ -147,15 +554,16 @@ document.addEventListener("DOMContentLoaded", function () {
 
 ## 💻 Code with Syntax Highlighting
 \`\`\`javascript
-  function renderMarkdown() {
+  async function renderMarkdown() {
     const markdown = markdownEditor.value;
     const html = marked.parse(markdown);
     const sanitizedHtml = DOMPurify.sanitize(html);
     markdownPreview.innerHTML = sanitizedHtml;
     
-    // Syntax highlighting is handled automatically
-    // during the parsing phase by the marked renderer.
-    // Themes are applied instantly via CSS variables.
+    // Apply syntax highlighting to code blocks
+    markdownPreview.querySelectorAll('pre code').forEach((block) => {
+        hljs.highlightElement(block);
+    });
   }
 \`\`\`
 
@@ -284,7 +692,7 @@ Create bullet points:
 Add a [link](https://github.com/ThisIs-Developer/Markdown-Viewer) to important resources.
 
 Embed an image:
-![Markdown Logo](https://markdownviewer.pages.dev/assets/icon.jpg)
+![Markdown Logo](https://example.com/logo.png)
 
 ### **Blockquotes**
 
@@ -299,483 +707,22 @@ This is a fully client-side application. Your content never leaves your browser 
 
   markdownEditor.value = sampleMarkdown;
 
-  // ========================================
-  // DOCUMENT TABS & SESSION MANAGEMENT
-  // ========================================
-
-  const STORAGE_KEY = 'markdownViewerTabs';
-  const ACTIVE_TAB_KEY = 'markdownViewerActiveTab';
-  const UNTITLED_COUNTER_KEY = 'markdownViewerUntitledCounter';
-  let tabs = [];
-  let activeTabId = null;
-  let draggedTabId = null;
-  let saveTabStateTimeout = null;
-  let untitledCounter = 0;
-
-  function loadTabsFromStorage() {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-    } catch (e) {
-      return [];
-    }
-  }
-
-  function saveTabsToStorage(tabsArr) {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(tabsArr));
-    } catch (e) {
-      console.warn('Failed to save tabs to localStorage:', e);
-    }
-  }
-
-  function loadActiveTabId() {
-    return localStorage.getItem(ACTIVE_TAB_KEY);
-  }
-
-  function saveActiveTabId(id) {
-    localStorage.setItem(ACTIVE_TAB_KEY, id);
-  }
-
-  function loadUntitledCounter() {
-    return parseInt(localStorage.getItem(UNTITLED_COUNTER_KEY) || '0', 10);
-  }
-
-  function saveUntitledCounter(val) {
-    localStorage.setItem(UNTITLED_COUNTER_KEY, String(val));
-  }
-
-  function nextUntitledTitle() {
-    untitledCounter += 1;
-    saveUntitledCounter(untitledCounter);
-    return 'Untitled ' + untitledCounter;
-  }
-
-  function createTab(content, title, viewMode) {
-    if (content === undefined) content = '';
-    if (title === undefined) title = null;
-    if (viewMode === undefined) viewMode = 'split';
-    return {
-      id: 'tab_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8),
-      title: title || 'Untitled',
-      content: content,
-      scrollPos: 0,
-      viewMode: viewMode,
-      createdAt: Date.now()
-    };
-  }
-
-  function renderTabBar(tabsArr, currentActiveTabId) {
-    const tabList = document.getElementById('tab-list');
-    if (!tabList) return;
-    tabList.innerHTML = '';
-    tabsArr.forEach(function(tab) {
-      const item = document.createElement('div');
-      item.className = 'tab-item' + (tab.id === currentActiveTabId ? ' active' : '');
-      item.setAttribute('data-tab-id', tab.id);
-      item.setAttribute('role', 'tab');
-      item.setAttribute('aria-selected', tab.id === currentActiveTabId ? 'true' : 'false');
-      item.setAttribute('draggable', 'true');
-
-      const titleSpan = document.createElement('span');
-      titleSpan.className = 'tab-title';
-      titleSpan.textContent = tab.title || 'Untitled';
-      titleSpan.title = tab.title || 'Untitled';
-
-      // Three-dot menu button
-      const menuBtn = document.createElement('button');
-      menuBtn.className = 'tab-menu-btn';
-      menuBtn.setAttribute('aria-label', 'File options');
-      menuBtn.title = 'File options';
-      menuBtn.innerHTML = '&#8943;';
-
-      // Dropdown
-      const dropdown = document.createElement('div');
-      dropdown.className = 'tab-menu-dropdown';
-      dropdown.innerHTML =
-        '<button class="tab-menu-item" data-action="rename"><i class="bi bi-pencil"></i> Rename</button>' +
-        '<button class="tab-menu-item" data-action="duplicate"><i class="bi bi-files"></i> Duplicate</button>' +
-        '<button class="tab-menu-item tab-menu-item-danger" data-action="delete"><i class="bi bi-trash"></i> Delete</button>';
-
-      menuBtn.appendChild(dropdown);
-
-      menuBtn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        // Close all other open dropdowns first
-        document.querySelectorAll('.tab-menu-btn.open').forEach(function(btn) {
-          if (btn !== menuBtn) btn.classList.remove('open');
-        });
-        menuBtn.classList.toggle('open');
-        // Position the dropdown relative to the viewport so it escapes the
-        // overflow scroll container on .tab-list
-        if (menuBtn.classList.contains('open')) {
-          var rect = menuBtn.getBoundingClientRect();
-          dropdown.style.top = (rect.bottom + 4) + 'px';
-          dropdown.style.right = (window.innerWidth - rect.right) + 'px';
-          dropdown.style.left = 'auto';
-        }
-      });
-
-      dropdown.querySelectorAll('.tab-menu-item').forEach(function(actionBtn) {
-        actionBtn.addEventListener('click', function(e) {
-          e.stopPropagation();
-          menuBtn.classList.remove('open');
-          const action = actionBtn.getAttribute('data-action');
-          if (action === 'rename') renameTab(tab.id);
-          else if (action === 'duplicate') duplicateTab(tab.id);
-          else if (action === 'delete') deleteTab(tab.id);
-        });
-      });
-
-      item.appendChild(titleSpan);
-      item.appendChild(menuBtn);
-
-      item.addEventListener('click', function() {
-        switchTab(tab.id);
-      });
-
-      item.addEventListener('dragstart', function() {
-        draggedTabId = tab.id;
-        setTimeout(function() { item.classList.add('dragging'); }, 0);
-      });
-
-      item.addEventListener('dragend', function() {
-        item.classList.remove('dragging');
-        draggedTabId = null;
-      });
-
-      item.addEventListener('dragover', function(e) {
-        e.preventDefault();
-        item.classList.add('drag-over');
-      });
-
-      item.addEventListener('dragleave', function() {
-        item.classList.remove('drag-over');
-      });
-
-      item.addEventListener('drop', function(e) {
-        e.preventDefault();
-        item.classList.remove('drag-over');
-        if (!draggedTabId || draggedTabId === tab.id) return;
-        const fromIdx = tabs.findIndex(function(t) { return t.id === draggedTabId; });
-        const toIdx = tabs.findIndex(function(t) { return t.id === tab.id; });
-        if (fromIdx === -1 || toIdx === -1) return;
-        const moved = tabs.splice(fromIdx, 1)[0];
-        tabs.splice(toIdx, 0, moved);
-        saveTabsToStorage(tabs);
-        renderTabBar(tabs, activeTabId);
-      });
-
-      tabList.appendChild(item);
-    });
-
-    // "+ Create" button at end of tab list
-    const newBtn = document.createElement('button');
-    newBtn.className = 'tab-new-btn';
-    newBtn.title = 'New Tab (Ctrl+T)';
-    newBtn.setAttribute('aria-label', 'Open new tab');
-    newBtn.innerHTML = '<i class="bi bi-plus-lg"></i>';
-    newBtn.addEventListener('click', function() { newTab(); });
-    tabList.appendChild(newBtn);
-
-    // Auto-scroll active tab into view
-    const activeItem = tabList.querySelector('.tab-item.active');
-    if (activeItem) {
-      activeItem.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-    }
-
-    renderMobileTabList(tabsArr, currentActiveTabId);
-  }
-
-  function renderMobileTabList(tabsArr, currentActiveTabId) {
-    const mobileTabList = document.getElementById('mobile-tab-list');
-    if (!mobileTabList) return;
-    mobileTabList.innerHTML = '';
-    tabsArr.forEach(function(tab) {
-      const item = document.createElement('div');
-      item.className = 'mobile-tab-item' + (tab.id === currentActiveTabId ? ' active' : '');
-      item.setAttribute('role', 'tab');
-      item.setAttribute('aria-selected', tab.id === currentActiveTabId ? 'true' : 'false');
-      item.setAttribute('data-tab-id', tab.id);
-
-      const titleSpan = document.createElement('span');
-      titleSpan.className = 'mobile-tab-title';
-      titleSpan.textContent = tab.title || 'Untitled';
-      titleSpan.title = tab.title || 'Untitled';
-
-      // Three-dot menu button (same as desktop)
-      const menuBtn = document.createElement('button');
-      menuBtn.className = 'tab-menu-btn';
-      menuBtn.setAttribute('aria-label', 'File options');
-      menuBtn.title = 'File options';
-      menuBtn.innerHTML = '&#8943;';
-
-      // Dropdown (same as desktop)
-      const dropdown = document.createElement('div');
-      dropdown.className = 'tab-menu-dropdown';
-      dropdown.innerHTML =
-        '<button class="tab-menu-item" data-action="rename"><i class="bi bi-pencil"></i> Rename</button>' +
-        '<button class="tab-menu-item" data-action="duplicate"><i class="bi bi-files"></i> Duplicate</button>' +
-        '<button class="tab-menu-item tab-menu-item-danger" data-action="delete"><i class="bi bi-trash"></i> Delete</button>';
-
-      menuBtn.appendChild(dropdown);
-
-      menuBtn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        document.querySelectorAll('.tab-menu-btn.open').forEach(function(btn) {
-          if (btn !== menuBtn) btn.classList.remove('open');
-        });
-        menuBtn.classList.toggle('open');
-        if (menuBtn.classList.contains('open')) {
-          const rect = menuBtn.getBoundingClientRect();
-          dropdown.style.top = (rect.bottom + 4) + 'px';
-          dropdown.style.right = (window.innerWidth - rect.right) + 'px';
-          dropdown.style.left = 'auto';
-        }
-      });
-
-      dropdown.querySelectorAll('.tab-menu-item').forEach(function(actionBtn) {
-        actionBtn.addEventListener('click', function(e) {
-          e.stopPropagation();
-          menuBtn.classList.remove('open');
-          const action = actionBtn.getAttribute('data-action');
-          if (action === 'rename') {
-            closeMobileMenu();
-            renameTab(tab.id);
-          } else if (action === 'duplicate') {
-            duplicateTab(tab.id);
-            closeMobileMenu();
-          } else if (action === 'delete') {
-            deleteTab(tab.id);
-          }
-        });
-      });
-
-      item.appendChild(titleSpan);
-      item.appendChild(menuBtn);
-
-      item.addEventListener('click', function() {
-        switchTab(tab.id);
-        closeMobileMenu();
-      });
-
-      mobileTabList.appendChild(item);
-    });
-  }
-
-  // Close any open tab dropdown when clicking elsewhere in the document
-  document.addEventListener('click', function() {
-    document.querySelectorAll('.tab-menu-btn.open').forEach(function(btn) {
-      btn.classList.remove('open');
-    });
-  });
-
-  function saveCurrentTabState() {
-    const tab = tabs.find(function(t) { return t.id === activeTabId; });
-    if (!tab) return;
-    tab.content = markdownEditor.value;
-    tab.scrollPos = markdownEditor.scrollTop;
-    tab.viewMode = currentViewMode || 'split';
-    saveTabsToStorage(tabs);
-  }
-
-  function restoreViewMode(mode) {
-    currentViewMode = null;
-    setViewMode(mode || 'split');
-  }
-
-  function switchTab(tabId) {
-    if (tabId === activeTabId) return;
-    saveCurrentTabState();
-    activeTabId = tabId;
-    saveActiveTabId(activeTabId);
-    const tab = tabs.find(function(t) { return t.id === tabId; });
-    if (!tab) return;
-    markdownEditor.value = tab.content;
-    restoreViewMode(tab.viewMode);
-    renderMarkdown();
-    requestAnimationFrame(function() {
-      markdownEditor.scrollTop = tab.scrollPos || 0;
-    });
-    renderTabBar(tabs, activeTabId);
-  }
-
-  function newTab(content, title) {
-    if (content === undefined) content = '';
-    if (tabs.length >= 20) {
-      alert('Maximum of 20 tabs reached. Please close an existing tab to open a new one.');
-      return;
-    }
-    if (!title) title = nextUntitledTitle();
-    const tab = createTab(content, title);
-    tabs.push(tab);
-    switchTab(tab.id);
-    markdownEditor.focus();
-  }
-
-  function closeTab(tabId) {
-    const idx = tabs.findIndex(function(t) { return t.id === tabId; });
-    if (idx === -1) return;
-    tabs.splice(idx, 1);
-    if (tabs.length === 0) {
-      // Auto-create new "Untitled" when last tab is deleted
-      const newT = createTab('', nextUntitledTitle());
-      tabs.push(newT);
-      activeTabId = newT.id;
-      saveActiveTabId(activeTabId);
-      markdownEditor.value = '';
-      restoreViewMode('split');
-      renderMarkdown();
-    } else if (activeTabId === tabId) {
-      const newIdx = Math.max(0, idx - 1);
-      activeTabId = tabs[newIdx].id;
-      saveActiveTabId(activeTabId);
-      const newActiveTab = tabs[newIdx];
-      markdownEditor.value = newActiveTab.content;
-      restoreViewMode(newActiveTab.viewMode);
-      renderMarkdown();
-      requestAnimationFrame(function() {
-        markdownEditor.scrollTop = newActiveTab.scrollPos || 0;
-      });
-    }
-    saveTabsToStorage(tabs);
-    renderTabBar(tabs, activeTabId);
-  }
-
-  function deleteTab(tabId) {
-    closeTab(tabId);
-  }
-
-  function renameTab(tabId) {
-    const tab = tabs.find(function(t) { return t.id === tabId; });
-    if (!tab) return;
-    const modal = document.getElementById('rename-modal');
-    const input = document.getElementById('rename-modal-input');
-    const confirmBtn = document.getElementById('rename-modal-confirm');
-    const cancelBtn = document.getElementById('rename-modal-cancel');
-    if (!modal || !input) return;
-    input.value = tab.title;
-    modal.style.display = 'flex';
-    input.focus();
-    input.select();
-
-    function doRename() {
-      const newName = input.value.trim();
-      if (newName) {
-        tab.title = newName;
-        saveTabsToStorage(tabs);
-        renderTabBar(tabs, activeTabId);
-      }
-      modal.style.display = 'none';
-      cleanup();
-    }
-
-    function cleanup() {
-      confirmBtn.removeEventListener('click', doRename);
-      cancelBtn.removeEventListener('click', doCancel);
-      input.removeEventListener('keydown', onKey);
-    }
-
-    function doCancel() {
-      modal.style.display = 'none';
-      cleanup();
-    }
-
-    function onKey(e) {
-      if (e.key === 'Enter') doRename();
-      else if (e.key === 'Escape') doCancel();
-    }
-
-    confirmBtn.addEventListener('click', doRename);
-    cancelBtn.addEventListener('click', doCancel);
-    input.addEventListener('keydown', onKey);
-  }
-
-  function duplicateTab(tabId) {
-    const tab = tabs.find(function(t) { return t.id === tabId; });
-    if (!tab) return;
-    if (tabs.length >= 20) {
-      alert('Maximum of 20 tabs reached. Please close an existing tab to open a new one.');
-      return;
-    }
-    saveCurrentTabState();
-    const dupTitle = tab.title + ' (copy)';
-    const dup = createTab(tab.content, dupTitle, tab.viewMode);
-    const idx = tabs.findIndex(function(t) { return t.id === tabId; });
-    tabs.splice(idx + 1, 0, dup);
-    switchTab(dup.id);
-  }
-
-  function resetAllTabs() {
-    const modal = document.getElementById('reset-confirm-modal');
-    const confirmBtn = document.getElementById('reset-modal-confirm');
-    const cancelBtn = document.getElementById('reset-modal-cancel');
-    if (!modal) return;
-    modal.style.display = 'flex';
-
-    function doReset() {
-      modal.style.display = 'none';
-      cleanup();
-      tabs = [];
-      untitledCounter = 0;
-      saveUntitledCounter(0);
-      const welcome = createTab(sampleMarkdown, 'Welcome to Markdown');
-      tabs.push(welcome);
-      activeTabId = welcome.id;
-      saveActiveTabId(activeTabId);
-      saveTabsToStorage(tabs);
-      markdownEditor.value = sampleMarkdown;
-      restoreViewMode('split');
-      renderMarkdown();
-      renderTabBar(tabs, activeTabId);
-    }
-
-    function doCancel() {
-      modal.style.display = 'none';
-      cleanup();
-    }
-
-    function cleanup() {
-      confirmBtn.removeEventListener('click', doReset);
-      cancelBtn.removeEventListener('click', doCancel);
-    }
-
-    confirmBtn.addEventListener('click', doReset);
-    cancelBtn.addEventListener('click', doCancel);
-  }
-
-  function initTabs() {
-    untitledCounter = loadUntitledCounter();
-    tabs = loadTabsFromStorage();
-    activeTabId = loadActiveTabId();
-    if (tabs.length === 0) {
-      const tab = createTab(sampleMarkdown, 'Welcome to Markdown');
-      tabs.push(tab);
-      activeTabId = tab.id;
-      saveTabsToStorage(tabs);
-      saveActiveTabId(activeTabId);
-    } else if (!tabs.find(function(t) { return t.id === activeTabId; })) {
-      activeTabId = tabs[0].id;
-      saveActiveTabId(activeTabId);
-    }
-    const activeTab = tabs.find(function(t) { return t.id === activeTabId; });
-    markdownEditor.value = activeTab.content;
-    restoreViewMode(activeTab.viewMode);
-    renderMarkdown();
-    requestAnimationFrame(function() {
-      markdownEditor.scrollTop = activeTab.scrollPos || 0;
-    });
-    renderTabBar(tabs, activeTabId);
-  }
-
-  function renderMarkdown() {
+  async function renderMarkdown() {
     try {
       const markdown = markdownEditor.value;
-      const html = marked.parse(markdown);
-      const sanitizedHtml = DOMPurify.sanitize(html, {
-        ADD_TAGS: ['mjx-container'],
-        ADD_ATTR: ['id', 'class', 'style']
-      });
+      const html = marked.parse(preprocessMarkdown(markdown));
+      const sanitizedHtml = DOMPurify.sanitize(html, SANITIZE_CONFIG);
       markdownPreview.innerHTML = sanitizedHtml;
+
+      markdownPreview.querySelectorAll("pre code").forEach((block) => {
+        try {
+          if (!block.classList.contains('mermaid')) {
+            hljs.highlightElement(block);
+          }
+        } catch (e) {
+          console.warn("Syntax highlighting failed for a code block:", e);
+        }
+      });
 
       processEmojis(markdownPreview);
       
@@ -785,16 +732,17 @@ This is a fully client-side application. Your content never leaves your browser 
       try {
         const mermaidNodes = markdownPreview.querySelectorAll('.mermaid');
         if (mermaidNodes.length > 0) {
-          Promise.resolve(mermaid.init(undefined, mermaidNodes))
-            .then(() => addMermaidToolbars())
-            .catch((e) => {
-              console.warn("Mermaid rendering failed:", e);
-              addMermaidToolbars();
-            });
+          await mermaid.run({
+            nodes: mermaidNodes,
+            suppressErrors: true
+          });
         }
       } catch (e) {
         console.warn("Mermaid rendering failed:", e);
       }
+
+      enhanceMermaidDiagrams(markdownPreview);
+      invalidateSyncAnchors();
       
       if (window.MathJax) {
         try {
@@ -809,423 +757,145 @@ This is a fully client-side application. Your content never leaves your browser 
       updateDocumentStats();
     } catch (e) {
       console.error("Markdown rendering failed:", e);
-      markdownPreview.innerHTML = `<div class="alert alert-danger">
-              <strong>Error rendering markdown:</strong> ${e.message}
-          </div>
-          <pre>${markdownEditor.value}</pre>`;
+      markdownPreview.innerHTML = "";
+
+      const errorAlert = document.createElement('div');
+      errorAlert.className = 'alert alert-danger';
+      const errorTitle = document.createElement('strong');
+      errorTitle.textContent = 'Error rendering markdown:';
+      const errorText = document.createTextNode(` ${e.message}`);
+      errorAlert.appendChild(errorTitle);
+      errorAlert.appendChild(errorText);
+
+      const markdownSource = document.createElement('pre');
+      markdownSource.textContent = markdownEditor.value;
+
+      markdownPreview.appendChild(errorAlert);
+      markdownPreview.appendChild(markdownSource);
     }
   }
 
   function importMarkdownFile(file) {
     const reader = new FileReader();
     reader.onload = function(e) {
-      newTab(e.target.result, file.name.replace(/\.md$/i, ''));
+      markdownEditor.value = e.target.result;
+      currentFileName = file.name || "document.md";
+      currentFileHandle = null;
+      renderMarkdown();
       dropzone.style.display = "none";
     };
     reader.readAsText(file);
   }
 
-  function isMarkdownPath(path) {
-    return /\.(md|markdown)$/i.test(path || "");
-  }
-  const MAX_GITHUB_FILES_SHOWN = 30;
-  const GITHUB_IMPORT_MIN_REQUEST_INTERVAL_MS = 800;
-  let lastGitHubImportRequestAt = 0;
-  const selectedGitHubImportPaths = new Set();
-  let availableGitHubImportPaths = [];
-
-  function getFileName(path) {
-    return (path || "").split("/").pop() || "document.md";
-  }
-
-  function buildRawGitHubUrl(owner, repo, ref, filePath) {
-    const encodedPath = filePath
-      .split("/")
-      .map((part) => encodeURIComponent(part))
-      .join("/");
-    return `https://raw.githubusercontent.com/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(ref)}/${encodedPath}`;
-  }
-
-  async function fetchGitHubJson(url) {
-    const now = Date.now();
-    const waitTime = GITHUB_IMPORT_MIN_REQUEST_INTERVAL_MS - (now - lastGitHubImportRequestAt);
-    if (waitTime > 0) {
-      await new Promise((resolve) => setTimeout(resolve, waitTime));
-    }
-    lastGitHubImportRequestAt = Date.now();
-    const response = await fetch(url, {
-      headers: {
-        Accept: "application/vnd.github+json"
-      }
-    });
-    if (!response.ok) {
-      throw new Error(`GitHub API request failed (${response.status})`);
-    }
-    return response.json();
-  }
-
-  async function fetchTextContent(url) {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch file (${response.status})`);
-    }
-    return response.text();
-  }
-
-  function parseGitHubImportUrl(input) {
-    let parsedUrl;
-    try {
-      parsedUrl = new URL((input || "").trim());
-    } catch (_) {
-      return null;
-    }
-
-    const host = parsedUrl.hostname.replace(/^www\./, "");
-    const segments = parsedUrl.pathname.split("/").filter(Boolean);
-
-    if (host === "raw.githubusercontent.com") {
-      if (segments.length < 5) return null;
-      const [owner, repo, ref, ...rest] = segments;
-      const filePath = rest.join("/");
-      return { owner, repo, ref, type: "file", filePath };
-    }
-
-    if (host !== "github.com" || segments.length < 2) return null;
-
-    const owner = segments[0];
-    const repo = segments[1].replace(/\.git$/i, "");
-    if (segments.length === 2) {
-      return { owner, repo, type: "repo" };
-    }
-
-    const mode = segments[2];
-    if (mode === "blob" && segments.length >= 5) {
-      return {
-        owner,
-        repo,
-        type: "file",
-        ref: segments[3],
-        filePath: segments.slice(4).join("/")
-      };
-    }
-
-    if (mode === "tree" && segments.length >= 4) {
-      return {
-        owner,
-        repo,
-        type: "tree",
-        ref: segments[3],
-        basePath: segments.slice(4).join("/")
-      };
-    }
-
-    return { owner, repo, type: "repo" };
-  }
-
-  async function getDefaultBranch(owner, repo) {
-    const repoInfo = await fetchGitHubJson(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`);
-    return repoInfo.default_branch;
-  }
-
-  async function listMarkdownFiles(owner, repo, ref, basePath) {
-    const treeResponse = await fetchGitHubJson(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/git/trees/${encodeURIComponent(ref)}?recursive=1`);
-    const normalizedBasePath = (basePath || "").replace(/^\/+|\/+$/g, "");
-
-    return (treeResponse.tree || [])
-      .filter((entry) => entry.type === "blob" && isMarkdownPath(entry.path))
-      .filter((entry) => !normalizedBasePath || entry.path === normalizedBasePath || entry.path.startsWith(normalizedBasePath + "/"))
-      .map((entry) => entry.path)
-      .sort((a, b) => a.localeCompare(b));
-  }
-
-  function buildMarkdownFileTree(paths) {
-    const root = { folders: {}, files: [] };
-    (paths || []).forEach((path) => {
-      const segments = (path || "").split("/").filter(Boolean);
-      if (!segments.length) return;
-      const fileName = segments.pop();
-      let node = root;
-      segments.forEach((segment) => {
-        if (!node.folders[segment]) {
-          node.folders[segment] = { folders: {}, files: [] };
-        }
-        node = node.folders[segment];
-      });
-      node.files.push({ name: fileName, path });
-    });
-    return root;
-  }
-
-  function updateGitHubImportSelectedCount() {
-    if (!githubImportSelectedCount) return;
-    const count = selectedGitHubImportPaths.size;
-    githubImportSelectedCount.textContent = `${count} selected`;
-  }
-
-  function updateGitHubSelectAllButtonLabel() {
-    if (!githubImportSelectAllBtn) return;
-    const total = availableGitHubImportPaths.length;
-    const allSelected = total > 0 && selectedGitHubImportPaths.size === total;
-    githubImportSelectAllBtn.textContent = allSelected ? "Clear All" : "Select All";
-  }
-
-  function syncGitHubSelectionToButtons() {
-    if (!githubImportTree) return;
-    Array.from(githubImportTree.querySelectorAll(".github-tree-file-btn")).forEach((btn) => {
-      const isSelected = selectedGitHubImportPaths.has(btn.dataset.path);
-      btn.classList.toggle("is-selected", isSelected);
-      btn.setAttribute("aria-pressed", isSelected ? "true" : "false");
-    });
-  }
-
-  function setGitHubSelectedPaths(paths) {
-    selectedGitHubImportPaths.clear();
-    (paths || []).forEach((path) => selectedGitHubImportPaths.add(path));
-    updateGitHubImportSelectedCount();
-    syncGitHubSelectionToButtons();
-    updateGitHubSelectAllButtonLabel();
-  }
-
-  function toggleGitHubSelectedPath(path) {
-    if (!path) return;
-    if (selectedGitHubImportPaths.has(path)) {
-      selectedGitHubImportPaths.delete(path);
-    } else {
-      selectedGitHubImportPaths.add(path);
-    }
-    updateGitHubImportSelectedCount();
-    syncGitHubSelectionToButtons();
-    updateGitHubSelectAllButtonLabel();
-  }
-
-  function renderGitHubImportTree(paths) {
-    if (!githubImportTree || !githubImportFileSelect) return;
-    githubImportTree.innerHTML = "";
-    const tree = buildMarkdownFileTree(paths);
-
-    const createTreeBranch = function(node, parentPath) {
-      const list = document.createElement("ul");
-      const folderNames = Object.keys(node.folders).sort((a, b) => a.localeCompare(b));
-      folderNames.forEach((folderName) => {
-        const folderPath = parentPath ? `${parentPath}/${folderName}` : folderName;
-        const item = document.createElement("li");
-        const folderLabel = document.createElement("span");
-        folderLabel.className = "github-tree-folder-label";
-        folderLabel.textContent = `📁 ${folderName}`;
-        item.appendChild(folderLabel);
-        item.appendChild(createTreeBranch(node.folders[folderName], folderPath));
-        list.appendChild(item);
-      });
-
-      node.files
-        .sort((a, b) => a.path.localeCompare(b.path))
-        .forEach((file) => {
-          const fileItem = document.createElement("li");
-          const fileButton = document.createElement("button");
-          fileButton.type = "button";
-          fileButton.className = "github-tree-file-btn";
-          fileButton.dataset.path = file.path;
-          fileButton.setAttribute("aria-pressed", "false");
-          fileButton.textContent = `📄 ${file.name}`;
-          fileButton.addEventListener("click", function() {
-            toggleGitHubSelectedPath(file.path);
-          });
-          fileItem.appendChild(fileButton);
-          list.appendChild(fileItem);
+  async function openMarkdownFile() {
+    // Use the File System Access API when available for a native open dialog.
+    if (window.showOpenFilePicker) {
+      try {
+        const [fileHandle] = await window.showOpenFilePicker({
+          types: [{
+            description: 'Markdown Files',
+            accept: {
+              'text/markdown': ['.md', '.markdown'],
+              'text/plain': ['.txt']
+            }
+          }],
+          excludeAcceptAllOption: false,
+          multiple: false
         });
 
-      return list;
-    };
+        if (!fileHandle) return;
 
-    githubImportTree.appendChild(createTreeBranch(tree, ""));
-    syncGitHubSelectionToButtons();
-  }
-
-  function setGitHubImportLoading(isLoading) {
-    if (!githubImportSubmitBtn) return;
-    if (isLoading) {
-      githubImportSubmitBtn.dataset.loadingText = githubImportSubmitBtn.textContent;
-      githubImportSubmitBtn.textContent = "Importing...";
-    } else if (githubImportSubmitBtn.dataset.loadingText) {
-      githubImportSubmitBtn.textContent = githubImportSubmitBtn.dataset.loadingText;
-      delete githubImportSubmitBtn.dataset.loadingText;
-    }
-  }
-
-  function setGitHubImportMessage(message, options = {}) {
-    if (!githubImportError) return;
-    const { isError = true } = options;
-    githubImportError.classList.toggle("is-info", !isError);
-    if (!message) {
-      githubImportError.textContent = "";
-      githubImportError.style.display = "none";
-      return;
-    }
-    githubImportError.textContent = message;
-    githubImportError.style.display = "block";
-  }
-
-  function resetGitHubImportModal() {
-    if (!githubImportUrlInput || !githubImportFileSelect || !githubImportSubmitBtn) return;
-    if (githubImportTitle) {
-      githubImportTitle.textContent = "Import Markdown from GitHub";
-    }
-    githubImportUrlInput.value = "";
-    githubImportUrlInput.style.display = "block";
-    githubImportUrlInput.disabled = false;
-    githubImportFileSelect.innerHTML = "";
-    githubImportFileSelect.style.display = "none";
-    githubImportFileSelect.disabled = false;
-    if (githubImportSelectionToolbar) {
-      githubImportSelectionToolbar.style.display = "none";
-    }
-    availableGitHubImportPaths = [];
-    setGitHubSelectedPaths([]);
-    if (githubImportTree) {
-      githubImportTree.innerHTML = "";
-      githubImportTree.style.display = "none";
-    }
-    githubImportSubmitBtn.dataset.step = "url";
-    delete githubImportSubmitBtn.dataset.owner;
-    delete githubImportSubmitBtn.dataset.repo;
-    delete githubImportSubmitBtn.dataset.ref;
-    githubImportSubmitBtn.textContent = "Import";
-    setGitHubImportMessage("");
-  }
-
-  function openGitHubImportModal() {
-    if (!githubImportModal || !githubImportUrlInput || !githubImportSubmitBtn) return;
-    resetGitHubImportModal();
-    githubImportModal.style.display = "flex";
-    githubImportUrlInput.focus();
-  }
-
-  function closeGitHubImportModal() {
-    if (!githubImportModal) return;
-    githubImportModal.style.display = "none";
-    resetGitHubImportModal();
-  }
-
-  async function handleGitHubImportSubmit() {
-    if (!githubImportSubmitBtn || !githubImportUrlInput || !githubImportFileSelect) return;
-    const setGitHubImportDialogDisabled = (disabled) => {
-      githubImportSubmitBtn.disabled = disabled;
-      if (githubImportCancelBtn) {
-        githubImportCancelBtn.disabled = disabled;
-      }
-      if (githubImportSelectAllBtn) {
-        githubImportSelectAllBtn.disabled = disabled;
-      }
-    };
-    const step = githubImportSubmitBtn.dataset.step || "url";
-    if (step === "select") {
-      const selectedPaths = Array.from(selectedGitHubImportPaths);
-      const owner = githubImportSubmitBtn.dataset.owner;
-      const repo = githubImportSubmitBtn.dataset.repo;
-      const ref = githubImportSubmitBtn.dataset.ref;
-      if (!owner || !repo || !ref || !selectedPaths.length) {
-        setGitHubImportMessage("Please select at least one file to import.");
+        const file = await fileHandle.getFile();
+        const content = await file.text();
+        markdownEditor.value = content;
+        currentFileName = file.name || "document.md";
+        currentFileHandle = fileHandle;
+        renderMarkdown();
         return;
+      } catch (e) {
+        // AbortError means the user closed the picker intentionally.
+        if (e && e.name !== 'AbortError') {
+          console.warn("Native open dialog failed, using fallback:", e);
+        }
       }
-      setGitHubImportLoading(true);
-      setGitHubImportDialogDisabled(true);
+    }
+
+    fileInput.click();
+  }
+
+  async function saveMarkdownFile() {
+    const markdownText = markdownEditor.value;
+
+    if (window.showSaveFilePicker) {
       try {
-        for (const selectedPath of selectedPaths) {
-          const markdown = await fetchTextContent(buildRawGitHubUrl(owner, repo, ref, selectedPath));
-          newTab(markdown, getFileName(selectedPath).replace(/\.(md|markdown)$/i, ""));
+        const fileHandle = currentFileHandle || await window.showSaveFilePicker({
+          suggestedName: currentFileName,
+          types: [{
+            description: 'Markdown Files',
+            accept: {
+              'text/markdown': ['.md'],
+              'text/plain': ['.txt']
+            }
+          }]
+        });
+
+        const writable = await fileHandle.createWritable();
+        await writable.write(markdownText);
+        await writable.close();
+
+        currentFileHandle = fileHandle;
+        return;
+      } catch (e) {
+        if (e && e.name !== 'AbortError') {
+          console.warn("Native save dialog failed, using fallback:", e);
+        } else {
+          return;
         }
-        closeGitHubImportModal();
-      } catch (error) {
-        console.error("GitHub import failed:", error);
-        setGitHubImportMessage("GitHub import failed: " + error.message);
-      } finally {
-        setGitHubImportDialogDisabled(false);
-        setGitHubImportLoading(false);
       }
-      return;
     }
 
-    const urlInput = githubImportUrlInput.value.trim();
-    if (!urlInput) {
-      setGitHubImportMessage("Please enter a GitHub URL.");
-      return;
+    const blob = new Blob([markdownText], {
+      type: "text/markdown;charset=utf-8",
+    });
+    saveAs(blob, currentFileName || "document.md");
+  }
+
+  function exportMarkdownFile() {
+    const blob = new Blob([markdownEditor.value], {
+      type: "text/markdown;charset=utf-8",
+    });
+    saveAs(blob, "document.md");
+  }
+
+  function insertTextAtCursor(text, selectStartOffset = null, selectEndOffset = null) {
+    const start = markdownEditor.selectionStart;
+    const end = markdownEditor.selectionEnd;
+    const currentValue = markdownEditor.value;
+
+    markdownEditor.value = currentValue.substring(0, start) + text + currentValue.substring(end);
+
+    if (selectStartOffset !== null && selectEndOffset !== null) {
+      markdownEditor.selectionStart = start + selectStartOffset;
+      markdownEditor.selectionEnd = start + selectEndOffset;
+    } else {
+      const caret = start + text.length;
+      markdownEditor.selectionStart = caret;
+      markdownEditor.selectionEnd = caret;
     }
 
-    const parsed = parseGitHubImportUrl(urlInput);
-    if (!parsed || !parsed.owner || !parsed.repo) {
-      setGitHubImportMessage("Please enter a valid GitHub URL.");
-      return;
-    }
+    markdownEditor.focus();
+    markdownEditor.dispatchEvent(new Event('input'));
+  }
 
-    setGitHubImportMessage("");
-    setGitHubImportLoading(true);
-    setGitHubImportDialogDisabled(true);
-    try {
-      if (parsed.type === "file") {
-        if (!isMarkdownPath(parsed.filePath)) {
-          throw new Error("The provided URL does not point to a Markdown file.");
-        }
-        const markdown = await fetchTextContent(buildRawGitHubUrl(parsed.owner, parsed.repo, parsed.ref, parsed.filePath));
-        newTab(markdown, getFileName(parsed.filePath).replace(/\.(md|markdown)$/i, ""));
-        closeGitHubImportModal();
-        return;
-      }
+  function insertAdoTocSnippet() {
+    insertTextAtCursor('[[_TOC_]]\n\n');
+  }
 
-      const ref = parsed.ref || await getDefaultBranch(parsed.owner, parsed.repo);
-      const files = await listMarkdownFiles(parsed.owner, parsed.repo, ref, parsed.basePath || "");
-
-      if (!files.length) {
-        setGitHubImportMessage("No Markdown files were found at that GitHub location.");
-        return;
-      }
-
-      const shownFiles = files.slice(0, MAX_GITHUB_FILES_SHOWN);
-      if (files.length === 1) {
-        const targetPath = files[0];
-        const markdown = await fetchTextContent(buildRawGitHubUrl(parsed.owner, parsed.repo, ref, targetPath));
-        newTab(markdown, getFileName(targetPath).replace(/\.(md|markdown)$/i, ""));
-        closeGitHubImportModal();
-        return;
-      }
-
-      githubImportFileSelect.innerHTML = "";
-      githubImportUrlInput.style.display = "none";
-      githubImportFileSelect.style.display = "none";
-      if (githubImportSelectionToolbar) {
-        githubImportSelectionToolbar.style.display = "flex";
-      }
-      if (githubImportTree) {
-        githubImportTree.style.display = "block";
-      }
-      shownFiles.forEach((filePath) => {
-        const option = document.createElement("option");
-        option.value = filePath;
-        option.textContent = filePath;
-        githubImportFileSelect.appendChild(option);
-      });
-      availableGitHubImportPaths = shownFiles.slice();
-      setGitHubSelectedPaths(shownFiles[0] ? [shownFiles[0]] : []);
-      renderGitHubImportTree(shownFiles);
-      if (files.length > MAX_GITHUB_FILES_SHOWN) {
-        setGitHubImportMessage(`Showing first ${MAX_GITHUB_FILES_SHOWN} of ${files.length} Markdown files.`, { isError: false });
-      } else {
-        setGitHubImportMessage("");
-      }
-      if (githubImportTitle) {
-        githubImportTitle.textContent = "Select Markdown file(s) to import";
-      }
-      githubImportSubmitBtn.dataset.step = "select";
-      githubImportSubmitBtn.dataset.owner = parsed.owner;
-      githubImportSubmitBtn.dataset.repo = parsed.repo;
-      githubImportSubmitBtn.dataset.ref = ref;
-      githubImportSubmitBtn.textContent = "Import Selected";
-    } catch (error) {
-      console.error("GitHub import failed:", error);
-      setGitHubImportMessage("GitHub import failed: " + error.message);
-    } finally {
-      setGitHubImportDialogDisabled(false);
-      setGitHubImportLoading(false);
-    }
+  function insertAdoNoteSnippet() {
+    const snippet = '> [!NOTE]\n> Add your note here.\n\n';
+    const placeholder = 'Add your note here.';
+    const startOffset = snippet.indexOf(placeholder);
+    insertTextAtCursor(snippet, startOffset, startOffset + placeholder.length);
   }
 
   function processEmojis(element) {
@@ -1280,7 +950,7 @@ This is a fully client-side application. Your content never leaves your browser 
       if (hasEmoji) {
         result += text.substring(lastIndex);
         const span = document.createElement('span');
-        span.innerHTML = result;
+        span.textContent = result;
         textNode.parentNode.replaceChild(span, textNode);
       }
     });
@@ -1304,6 +974,129 @@ This is a fully client-side application. Your content never leaves your browser 
     readingTimeElement.textContent = readingTimeMinutes;
   }
 
+  // ── Anchor-based scroll & click sync ─────────────────────────────────────
+  // Anchors pair each heading's pixel position in the editor with its rendered
+  // pixel position in the preview, then piecewise-interpolate between them.
+  // The cache is invalidated after every render and on window resize so it
+  // always reflects the current DOM layout.
+
+  let syncAnchorsCache = null;
+
+  function invalidateSyncAnchors() {
+    syncAnchorsCache = null;
+  }
+
+  // Creates a hidden mirror div matching the textarea's styles and returns the
+  // accumulated scrollHeight (= top-of-line offset) for each requested line index.
+  function measureEditorLineOffsets(lineIndices) {
+    if (lineIndices.length === 0) return [];
+
+    const mirror = document.createElement('div');
+    const cs = window.getComputedStyle(editorPane);
+    [
+      'fontFamily','fontSize','fontWeight','fontStyle','fontVariant',
+      'lineHeight','letterSpacing','wordSpacing','textIndent',
+      'paddingTop','paddingRight','paddingBottom','paddingLeft',
+      'borderTopWidth','borderRightWidth','borderBottomWidth','borderLeftWidth',
+      'boxSizing'
+    ].forEach(p => { mirror.style[p] = cs[p]; });
+
+    mirror.style.width        = editorPane.clientWidth + 'px';
+    mirror.style.position     = 'absolute';
+    mirror.style.visibility   = 'hidden';
+    mirror.style.top          = '-9999px';
+    mirror.style.left         = '-9999px';
+    mirror.style.whiteSpace   = 'pre-wrap';
+    mirror.style.overflowWrap = 'break-word';
+    mirror.style.overflow     = 'hidden';
+    mirror.style.height       = 'auto';
+
+    document.body.appendChild(mirror);
+
+    const lines   = markdownEditor.value.split('\n');
+    const results = [];
+
+    for (const idx of lineIndices) {
+      const textBefore = lines.slice(0, idx).join('\n');
+      // Trailing newline ensures the mirror's height ends at the start of line idx.
+      mirror.textContent = textBefore ? textBefore + '\n' : '';
+      results.push(mirror.scrollHeight);
+    }
+
+    document.body.removeChild(mirror);
+    return results;
+  }
+
+  // Absolute pixel offset of `el` within the previewPane scroll content.
+  function previewAbsoluteTop(el) {
+    const rect     = el.getBoundingClientRect();
+    const paneRect = previewPane.getBoundingClientRect();
+    return previewPane.scrollTop + (rect.top - paneRect.top);
+  }
+
+  function buildSyncAnchors() {
+    if (syncAnchorsCache) return syncAnchorsCache;
+
+    const lines          = markdownEditor.value.split('\n');
+    const editorScrollMax  = editorPane.scrollHeight  - editorPane.clientHeight;
+    const previewScrollMax = previewPane.scrollHeight - previewPane.clientHeight;
+
+    if (editorScrollMax < 1 || previewScrollMax < 1) {
+      syncAnchorsCache = [{ editorPx: 0, previewPx: 0 }];
+      return syncAnchorsCache;
+    }
+
+    // Collect 0-based line indices of headings in source order.
+    const headingLineIndices = [];
+    for (let i = 0; i < lines.length; i++) {
+      if (/^#{1,6}\s/.test(lines[i])) headingLineIndices.push(i);
+    }
+
+    const previewHeadings = Array.from(
+      markdownPreview.querySelectorAll('h1,h2,h3,h4,h5,h6')
+    );
+
+    const anchors = [{ editorPx: 0, previewPx: 0 }];
+    const count   = Math.min(headingLineIndices.length, previewHeadings.length);
+
+    if (count > 0) {
+      const editorOffsets = measureEditorLineOffsets(headingLineIndices.slice(0, count));
+
+      for (let i = 0; i < count; i++) {
+        const editorPx  = Math.min(editorOffsets[i],                              editorScrollMax);
+        const previewPx = Math.min(previewAbsoluteTop(previewHeadings[i]),        previewScrollMax);
+        const last      = anchors[anchors.length - 1];
+        // Keep anchors strictly monotone on the editor axis.
+        if (editorPx > last.editorPx && previewPx >= last.previewPx) {
+          anchors.push({ editorPx, previewPx });
+        }
+      }
+    }
+
+    anchors.push({ editorPx: editorScrollMax, previewPx: previewScrollMax });
+    syncAnchorsCache = anchors;
+    return anchors;
+  }
+
+  // Piecewise linear interpolation along the anchor chain.
+  function piecewiseMap(anchors, fromKey, toKey, value) {
+    if (anchors.length === 0) return 0;
+    if (value <= anchors[0][fromKey]) return anchors[0][toKey];
+    const last = anchors[anchors.length - 1];
+    if (value >= last[fromKey]) return last[toKey];
+
+    for (let i = 0; i < anchors.length - 1; i++) {
+      const a = anchors[i], b = anchors[i + 1];
+      if (value >= a[fromKey] && value <= b[fromKey]) {
+        const span = b[fromKey] - a[fromKey];
+        const r    = span > 0 ? (value - a[fromKey]) / span : 0;
+        return a[toKey] + r * (b[toKey] - a[toKey]);
+      }
+    }
+    return last[toKey];
+  }
+
+  // ── Scroll sync ───────────────────────────────────────────────────────────
   function syncEditorToPreview() {
     if (!syncScrollingEnabled || isPreviewScrolling) return;
 
@@ -1311,20 +1104,14 @@ This is a fully client-side application. Your content never leaves your browser 
     clearTimeout(scrollSyncTimeout);
 
     scrollSyncTimeout = setTimeout(() => {
-      const editorScrollRatio =
-        editorPane.scrollTop /
-        (editorPane.scrollHeight - editorPane.clientHeight);
-      const previewScrollPosition =
-        (previewPane.scrollHeight - previewPane.clientHeight) *
-        editorScrollRatio;
+      const anchors        = buildSyncAnchors();
+      const target         = piecewiseMap(anchors, 'editorPx', 'previewPx', editorPane.scrollTop);
+      const previewScrollMax = previewPane.scrollHeight - previewPane.clientHeight;
 
-      if (!isNaN(previewScrollPosition) && isFinite(previewScrollPosition)) {
-        previewPane.scrollTop = previewScrollPosition;
+      if (isFinite(target)) {
+        previewPane.scrollTop = Math.max(0, Math.min(target, previewScrollMax));
       }
-
-      setTimeout(() => {
-        isEditorScrolling = false;
-      }, 50);
+      setTimeout(() => { isEditorScrolling = false; }, 50);
     }, SCROLL_SYNC_DELAY);
   }
 
@@ -1335,35 +1122,72 @@ This is a fully client-side application. Your content never leaves your browser 
     clearTimeout(scrollSyncTimeout);
 
     scrollSyncTimeout = setTimeout(() => {
-      const previewScrollRatio =
-        previewPane.scrollTop /
-        (previewPane.scrollHeight - previewPane.clientHeight);
-      const editorScrollPosition =
-        (editorPane.scrollHeight - editorPane.clientHeight) *
-        previewScrollRatio;
+      const anchors       = buildSyncAnchors();
+      const target        = piecewiseMap(anchors, 'previewPx', 'editorPx', previewPane.scrollTop);
+      const editorScrollMax = editorPane.scrollHeight - editorPane.clientHeight;
 
-      if (!isNaN(editorScrollPosition) && isFinite(editorScrollPosition)) {
-        editorPane.scrollTop = editorScrollPosition;
+      if (isFinite(target)) {
+        editorPane.scrollTop = Math.max(0, Math.min(target, editorScrollMax));
       }
-
-      setTimeout(() => {
-        isPreviewScrolling = false;
-      }, 50);
+      setTimeout(() => { isPreviewScrolling = false; }, 50);
     }, SCROLL_SYNC_DELAY);
+  }
+
+  // ── Click sync ────────────────────────────────────────────────────────────
+  // Editor click → scroll preview to the line the cursor landed on.
+  function syncEditorClickToPreview() {
+    if (!syncScrollingEnabled) return;
+
+    const textBefore = markdownEditor.value.substring(0, markdownEditor.selectionStart);
+    const lineIndex  = textBefore.split('\n').length - 1;
+    const offsets    = measureEditorLineOffsets([lineIndex]);
+    const editorPx   = offsets[0];
+    const anchors    = buildSyncAnchors();
+    const target     = piecewiseMap(anchors, 'editorPx', 'previewPx', editorPx);
+    const previewScrollMax = previewPane.scrollHeight - previewPane.clientHeight;
+
+    if (isFinite(target)) {
+      isEditorScrolling = true;
+      previewPane.scrollTop = Math.max(0, Math.min(target, previewScrollMax));
+      setTimeout(() => { isEditorScrolling = false; }, 100);
+    }
+  }
+
+  // Preview click → scroll editor to the corresponding position.
+  function syncPreviewClickToEditor(event) {
+    if (!syncScrollingEnabled) return;
+
+    const paneRect       = previewPane.getBoundingClientRect();
+    const clickedPreviewPx = previewPane.scrollTop + (event.clientY - paneRect.top);
+    const anchors        = buildSyncAnchors();
+    const target         = piecewiseMap(anchors, 'previewPx', 'editorPx', clickedPreviewPx);
+    const editorScrollMax  = editorPane.scrollHeight - editorPane.clientHeight;
+
+    if (isFinite(target)) {
+      isPreviewScrolling = true;
+      editorPane.scrollTop = Math.max(0, Math.min(target, editorScrollMax));
+      setTimeout(() => { isPreviewScrolling = false; }, 100);
+    }
   }
 
   function toggleSyncScrolling() {
     syncScrollingEnabled = !syncScrollingEnabled;
+    const buttons = [
+      { el: toggleSyncButton,  mobile: false },
+      { el: mobileToggleSync,  mobile: true  }
+    ].filter(b => b.el);
     if (syncScrollingEnabled) {
-      toggleSyncButton.innerHTML = '<i class="bi bi-link-45deg"></i> Sync Off';
-      toggleSyncButton.classList.add("sync-disabled");
-      toggleSyncButton.classList.remove("sync-enabled");
-      toggleSyncButton.classList.add("border-primary");
+      buttons.forEach(({ el, mobile }) => {
+        el.innerHTML = `<i class="bi bi-link-45deg${mobile ? ' me-2' : ''}"></i> Sync On`;
+        el.classList.add("sync-enabled", "border-primary");
+        el.classList.remove("sync-disabled");
+      });
     } else {
-      toggleSyncButton.innerHTML = '<i class="bi bi-link"></i> Sync On';
-      toggleSyncButton.classList.add("sync-enabled");
-      toggleSyncButton.classList.remove("sync-disabled");
-      toggleSyncButton.classList.remove("border-primary");
+      buttons.forEach(({ el, mobile }) => {
+        el.innerHTML = `<i class="bi bi-link${mobile ? ' me-2' : ''}"></i> Sync Off`;
+        el.classList.add("sync-disabled");
+        el.classList.remove("sync-enabled", "border-primary");
+      });
     }
   }
 
@@ -1544,22 +1368,16 @@ This is a fully client-side application. Your content never leaves your browser 
 
   mobileToggleSync.addEventListener("click", () => {
     toggleSyncScrolling();
-    if (syncScrollingEnabled) {
-      mobileToggleSync.innerHTML = '<i class="bi bi-link-45deg me-2"></i> Sync Off';
-      mobileToggleSync.classList.add("sync-disabled");
-      mobileToggleSync.classList.remove("sync-enabled");
-      mobileToggleSync.classList.add("border-primary");
-    } else {
-      mobileToggleSync.innerHTML = '<i class="bi bi-link me-2"></i> Sync On';
-      mobileToggleSync.classList.add("sync-enabled");
-      mobileToggleSync.classList.remove("sync-disabled");
-      mobileToggleSync.classList.remove("border-primary");
-    }
   });
-  mobileImportBtn.addEventListener("click", () => fileInput.click());
-  mobileImportGithubBtn.addEventListener("click", () => {
+  mobileOpenBtn.addEventListener("click", () => openMarkdownFile());
+  mobileSaveBtn.addEventListener("click", () => saveMarkdownFile());
+  mobileInsertAdoTocBtn.addEventListener("click", () => {
+    insertAdoTocSnippet();
     closeMobileMenu();
-    openGitHubImportModal();
+  });
+  mobileInsertAdoNoteBtn.addEventListener("click", () => {
+    insertAdoNoteSnippet();
+    closeMobileMenu();
   });
   mobileExportMd.addEventListener("click", () => exportMd.click());
   mobileExportHtml.addEventListener("click", () => exportHtml.click());
@@ -1569,25 +1387,12 @@ This is a fully client-side application. Your content never leaves your browser 
     themeToggle.click();
     mobileThemeToggle.innerHTML = themeToggle.innerHTML + " Toggle Dark Mode";
   });
-
-  const mobileNewTabBtn = document.getElementById("mobile-new-tab-btn");
-  if (mobileNewTabBtn) {
-    mobileNewTabBtn.addEventListener("click", function() {
-      newTab();
-      closeMobileMenu();
-    });
-  }
-
-  const mobileTabResetBtn = document.getElementById("mobile-tab-reset-btn");
-  if (mobileTabResetBtn) {
-    mobileTabResetBtn.addEventListener("click", function() {
-      closeMobileMenu();
-      resetAllTabs();
-    });
-  }
   
-  initTabs();
+  renderMarkdown();
   updateMobileStats();
+
+  // Initialize view mode - Story 1.1
+  contentContainer.classList.add('view-split');
 
   // Initialize resizer - Story 1.3
   initResizer();
@@ -1597,7 +1402,6 @@ This is a fully client-side application. Your content never leaves your browser 
     btn.addEventListener('click', function() {
       const mode = this.getAttribute('data-mode');
       setViewMode(mode);
-      saveCurrentTabState();
     });
   });
 
@@ -1606,16 +1410,11 @@ This is a fully client-side application. Your content never leaves your browser 
     btn.addEventListener('click', function() {
       const mode = this.getAttribute('data-mode');
       setViewMode(mode);
-      saveCurrentTabState();
       closeMobileMenu();
     });
   });
 
-  markdownEditor.addEventListener("input", function() {
-    debouncedRender();
-    clearTimeout(saveTabStateTimeout);
-    saveTabStateTimeout = setTimeout(saveCurrentTabState, 500);
-  });
+  markdownEditor.addEventListener("input", debouncedRender);
   
   // Tab key handler to insert indentation instead of moving focus
   markdownEditor.addEventListener("keydown", function(e) {
@@ -1643,6 +1442,14 @@ This is a fully client-side application. Your content never leaves your browser 
   editorPane.addEventListener("scroll", syncEditorToPreview);
   previewPane.addEventListener("scroll", syncPreviewToEditor);
   toggleSyncButton.addEventListener("click", toggleSyncScrolling);
+
+  // Click-to-sync: clicking in either pane scrolls the other to match.
+  editorPane.addEventListener("click",   syncEditorClickToPreview);
+  editorPane.addEventListener("keyup",   syncEditorClickToPreview);
+  previewPane.addEventListener("click",  syncPreviewClickToEditor);
+
+  // Invalidate anchor cache when window is resized (line widths change).
+  window.addEventListener("resize", invalidateSyncAnchors);
   themeToggle.addEventListener("click", function () {
     const theme =
       document.documentElement.getAttribute("data-theme") === "dark"
@@ -1659,47 +1466,21 @@ This is a fully client-side application. Your content never leaves your browser 
     renderMarkdown();
   });
 
-  if (importFromFileButton) {
-    importFromFileButton.addEventListener("click", function (e) {
-      e.preventDefault();
-      fileInput.click();
-    });
-  }
+  openButton.addEventListener("click", function () {
+    openMarkdownFile();
+  });
 
-  if (importFromGithubButton) {
-    importFromGithubButton.addEventListener("click", function (e) {
-      e.preventDefault();
-      openGitHubImportModal();
-    });
-  }
+  saveButton.addEventListener("click", function () {
+    saveMarkdownFile();
+  });
 
-  if (githubImportSubmitBtn) {
-    githubImportSubmitBtn.addEventListener("click", handleGitHubImportSubmit);
-  }
-  if (githubImportCancelBtn) {
-    githubImportCancelBtn.addEventListener("click", closeGitHubImportModal);
-  }
-  const handleGitHubImportInputKeydown = function(e) {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      handleGitHubImportSubmit();
-    } else if (e.key === "Escape") {
-      closeGitHubImportModal();
-    }
-  };
-  if (githubImportUrlInput) {
-    githubImportUrlInput.addEventListener("keydown", handleGitHubImportInputKeydown);
-  }
-  if (githubImportFileSelect) {
-    githubImportFileSelect.addEventListener("keydown", handleGitHubImportInputKeydown);
-  }
-  if (githubImportSelectAllBtn) {
-    githubImportSelectAllBtn.addEventListener("click", function() {
-      const allPaths = availableGitHubImportPaths.slice();
-      const shouldSelectAll = selectedGitHubImportPaths.size !== allPaths.length;
-      setGitHubSelectedPaths(shouldSelectAll ? allPaths : []);
-    });
-  }
+  insertAdoTocButton.addEventListener("click", function () {
+    insertAdoTocSnippet();
+  });
+
+  insertAdoNoteButton.addEventListener("click", function () {
+    insertAdoNoteSnippet();
+  });
 
   fileInput.addEventListener("change", function (e) {
     const file = e.target.files[0];
@@ -1709,26 +1490,41 @@ This is a fully client-side application. Your content never leaves your browser 
     this.value = "";
   });
 
-  exportMd.addEventListener("click", function () {
+  exportMd.addEventListener("click", function (e) {
+    e.preventDefault();
     try {
-      const blob = new Blob([markdownEditor.value], {
-        type: "text/markdown;charset=utf-8",
-      });
-      saveAs(blob, "document.md");
+      exportMarkdownFile();
     } catch (e) {
       console.error("Export failed:", e);
       alert("Export failed: " + e.message);
     }
   });
 
-  exportHtml.addEventListener("click", function () {
+  document.addEventListener("keydown", function(e) {
+    if (!(e.ctrlKey || e.metaKey)) return;
+
+    const key = e.key.toLowerCase();
+    if (key === 'o') {
+      e.preventDefault();
+      openMarkdownFile();
+    } else if (key === 's') {
+      e.preventDefault();
+      saveMarkdownFile();
+    } else if (e.altKey && key === 't') {
+      e.preventDefault();
+      insertAdoTocSnippet();
+    } else if (e.altKey && key === 'n') {
+      e.preventDefault();
+      insertAdoNoteSnippet();
+    }
+  });
+
+  exportHtml.addEventListener("click", function (e) {
+    e.preventDefault();
     try {
       const markdown = markdownEditor.value;
-      const html = marked.parse(markdown);
-      const sanitizedHtml = DOMPurify.sanitize(html, {
-        ADD_TAGS: ['mjx-container'], 
-        ADD_ATTR: ['id', 'class', 'style']
-      });
+      const html = marked.parse(preprocessMarkdown(markdown));
+      const sanitizedHtml = DOMPurify.sanitize(html, SANITIZE_CONFIG);
       const isDarkTheme =
         document.documentElement.getAttribute("data-theme") === "dark";
       const cssTheme = isDarkTheme
@@ -1741,6 +1537,9 @@ This is a fully client-side application. Your content never leaves your browser 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Markdown Export</title>
   <link rel="stylesheet" href="${cssTheme}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/${
+    isDarkTheme ? "github-dark" : "github"
+  }.min.css">
   <style>
       body {
           background-color: ${isDarkTheme ? "#0d1117" : "#ffffff"};
@@ -1755,23 +1554,6 @@ This is a fully client-side application. Your content never leaves your browser 
           background-color: ${isDarkTheme ? "#0d1117" : "#ffffff"};
           color: ${isDarkTheme ? "#c9d1d9" : "#24292e"};
       }
-
-      /* Syntax Highlighting */
-      .hljs-doctag, .hljs-keyword, .hljs-template-tag, .hljs-template-variable, .hljs-type, .hljs-variable.language_ { color: ${isDarkTheme ? "#ff7b72" : "#d73a49"}; }
-      .hljs-title, .hljs-title.class_, .hljs-title.class_.inherited__, .hljs-title.function_ { color: ${isDarkTheme ? "#d2a8ff" : "#6f42c1"}; }
-      .hljs-attr, .hljs-attribute, .hljs-literal, .hljs-meta, .hljs-number, .hljs-operator, .hljs-variable, .hljs-selector-attr, .hljs-selector-class, .hljs-selector-id { color: ${isDarkTheme ? "#79c0ff" : "#005cc5"}; }
-      .hljs-regexp, .hljs-string, .hljs-meta .hljs-string { color: ${isDarkTheme ? "#a5d6ff" : "#032f62"}; }
-      .hljs-built_in, .hljs-symbol { color: ${isDarkTheme ? "#ffa657" : "#e36209"}; }
-      .hljs-comment, .hljs-code, .hljs-formula { color: ${isDarkTheme ? "#8b949e" : "#6a737d"}; }
-      .hljs-name, .hljs-quote, .hljs-selector-tag, .hljs-selector-pseudo { color: ${isDarkTheme ? "#7ee787" : "#22863a"}; }
-      .hljs-subst { color: ${isDarkTheme ? "#c9d1d9" : "#24292e"}; }
-      .hljs-section { color: ${isDarkTheme ? "#1f6feb" : "#005cc5"}; font-weight: bold; }
-      .hljs-bullet { color: ${isDarkTheme ? "#79c0ff" : "#005cc5"}; }
-      .hljs-emphasis { font-style: italic; }
-      .hljs-strong { font-weight: bold; }
-      .hljs-addition { color: ${isDarkTheme ? "#aff5b4" : "#22863a"}; background-color: ${isDarkTheme ? "#033a16" : "#f0fff4"}; }
-      .hljs-deletion { color: ${isDarkTheme ? "#ffdcd7" : "#b31d28"}; background-color: ${isDarkTheme ? "#67060c" : "#ffeef0"}; }
-
       @media (max-width: 767px) {
           .markdown-body {
               padding: 15px;
@@ -1958,11 +1740,11 @@ This is a fully client-side application. Your content never leaves your browser 
     try {
       // Step 1: Identify all graphic elements
       const graphics = identifyGraphicElements(tempElement);
-      console.log('Step 1 - Graphics found:', graphics.length, graphics.map(g => g.type));
+      debugPdfExport('Step 1 - Graphics found:', graphics.length, graphics.map(g => g.type));
 
       // Step 2: Calculate positions for each element
       const elementsWithPositions = calculateElementPositions(graphics, tempElement);
-      console.log('Step 2 - Element positions:', elementsWithPositions.map(e => ({
+      debugPdfExport('Step 2 - Element positions:', elementsWithPositions.map(e => ({
         type: e.type,
         top: Math.round(e.top),
         height: Math.round(e.height),
@@ -1978,7 +1760,7 @@ This is a fully client-side application. Your content never leaves your browser 
         PAGE_CONFIG
       );
 
-      console.log('Step 3 - Page boundaries:', {
+      debugPdfExport('Step 3 - Page boundaries:', {
         elementWidth,
         totalHeight,
         pageHeightPx: Math.round(pageHeightPx),
@@ -1987,7 +1769,7 @@ This is a fully client-side application. Your content never leaves your browser 
 
       // Step 4: Detect split elements
       const splitElements = detectSplitElements(elementsWithPositions, pageBoundaries);
-      console.log('Step 4 - Split elements detected:', splitElements.length);
+      debugPdfExport('Step 4 - Split elements detected:', splitElements.length);
 
       // Calculate page count
       const pageCount = pageBoundaries.length + 1;
@@ -2057,7 +1839,7 @@ This is a fully client-side application. Your content never leaves your browser 
       const remainingSpace = currentPageBottom - item.top;
       const remainingRatio = remainingSpace / pageHeightPx;
 
-      console.log('Processing split element:', {
+      debugPdfExport('Processing split element:', {
         type: item.type,
         top: Math.round(item.top),
         height: Math.round(item.height),
@@ -2073,7 +1855,7 @@ This is a fully client-side application. Your content never leaves your browser 
       if (remainingRatio > PAGE_BREAK_THRESHOLD) {
         const scaledHeight = item.height * 0.9; // 90% scale
         if (scaledHeight <= remainingSpace) {
-          console.log('  -> Skipping (can fit with 90% scaling)');
+          debugPdfExport('  -> Skipping (can fit with 90% scaling)');
           continue;
         }
       }
@@ -2081,21 +1863,21 @@ This is a fully client-side application. Your content never leaves your browser 
       // Calculate margin needed to push element to next page
       const marginNeeded = currentPageBottom - item.top + 5; // 5px buffer
 
-      console.log('  -> Applying marginTop:', marginNeeded, 'px');
+      debugPdfExport('  -> Applying marginTop:', marginNeeded, 'px');
 
       // Determine which element to apply margin to
       // For SVG elements (Mermaid diagrams), apply to parent container for proper layout
       let targetElement = item.element;
       if (item.type === 'svg' && item.element.parentElement) {
         targetElement = item.element.parentElement;
-        console.log('  -> Using parent element:', targetElement.tagName, targetElement.className);
+        debugPdfExport('  -> Using parent element:', targetElement.tagName, targetElement.className);
       }
 
       // Apply margin to push element to next page
       const currentMargin = parseFloat(targetElement.style.marginTop) || 0;
       targetElement.style.marginTop = `${currentMargin + marginNeeded}px`;
 
-      console.log('  -> Element after margin:', targetElement.tagName, 'marginTop =', targetElement.style.marginTop);
+      debugPdfExport('  -> Element after margin:', targetElement.tagName, 'marginTop =', targetElement.style.marginTop);
     }
   }
 
@@ -2149,7 +1931,7 @@ This is a fully client-side application. Your content never leaves your browser 
       console.warn('Page-break stabilization reached max iterations:', maxIterations);
     }
 
-    console.log('Page-break cascade complete:', {
+    debugPdfExport('Page-break cascade complete:', {
       iterations: iteration,
       finalSplitCount: analysis.splitElements.length,
       oversizedCount: analysis.oversizedElements ? analysis.oversizedElements.length : 0
@@ -2251,7 +2033,7 @@ This is a fully client-side application. Your content never leaves your browser 
       }
     }
 
-    console.log('Oversized graphics scaling complete:', {
+    debugPdfExport('Oversized graphics scaling complete:', {
       totalScaled: scaledCount,
       clampedToMinimum: clampedCount
     });
@@ -2261,13 +2043,15 @@ This is a fully client-side application. Your content never leaves your browser 
   // End Oversized Graphics Scaling Functions
   // ============================================
 
-  exportPdf.addEventListener("click", async function () {
+  exportPdf.addEventListener("click", async function (e) {
+    e.preventDefault();
     try {
       const originalText = exportPdf.innerHTML;
       exportPdf.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating...';
       exportPdf.disabled = true;
 
       const progressContainer = document.createElement('div');
+      progressContainer.id = 'pdf-export-progress';
       progressContainer.style.position = 'fixed';
       progressContainer.style.top = '50%';
       progressContainer.style.left = '50%';
@@ -2285,11 +2069,8 @@ This is a fully client-side application. Your content never leaves your browser 
       document.body.appendChild(progressContainer);
 
       const markdown = markdownEditor.value;
-      const html = marked.parse(markdown);
-      const sanitizedHtml = DOMPurify.sanitize(html, {
-        ADD_TAGS: ['mjx-container', 'svg', 'path', 'g', 'marker', 'defs', 'pattern', 'clipPath'],
-        ADD_ATTR: ['id', 'class', 'style', 'viewBox', 'd', 'fill', 'stroke', 'transform', 'marker-end', 'marker-start']
-      });
+      const html = marked.parse(preprocessMarkdown(markdown));
+      const sanitizedHtml = DOMPurify.sanitize(html, SANITIZE_CONFIG_PDF);
 
       const tempElement = document.createElement("div");
       tempElement.className = "markdown-body pdf-export";
@@ -2417,7 +2198,7 @@ This is a fully client-side application. Your content never leaves your browser 
       exportPdf.innerHTML = '<i class="bi bi-file-earmark-pdf"></i> Export';
       exportPdf.disabled = false;
 
-      const progressContainer = document.querySelector('div[style*="Preparing PDF"]');
+      const progressContainer = document.getElementById('pdf-export-progress');
       if (progressContainer) {
         document.body.removeChild(progressContainer);
       }
@@ -2469,95 +2250,6 @@ This is a fully client-side application. Your content never leaves your browser 
       copyMarkdownButton.innerHTML = originalText;
     }, 2000);
   }
-
-  // ============================================
-  // Share via URL (pako compression + base64url)
-  // ============================================
-
-  const MAX_SHARE_URL_LENGTH = 32000;
-
-  function encodeMarkdownForShare(text) {
-    const compressed = pako.deflate(new TextEncoder().encode(text));
-    const chunkSize = 0x8000;
-    let binary = '';
-    for (let i = 0; i < compressed.length; i += chunkSize) {
-      binary += String.fromCharCode.apply(null, compressed.subarray(i, i + chunkSize));
-    }
-    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  }
-
-  function decodeMarkdownFromShare(encoded) {
-    const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
-    const binary = atob(base64);
-    const bytes = Uint8Array.from(binary, c => c.charCodeAt(0));
-    return new TextDecoder().decode(pako.inflate(bytes));
-  }
-
-  function copyShareUrl(btn) {
-    const markdownText = markdownEditor.value;
-    let encoded;
-    try {
-      encoded = encodeMarkdownForShare(markdownText);
-    } catch (e) {
-      console.error("Share encoding failed:", e);
-      alert("Failed to encode content for sharing: " + e.message);
-      return;
-    }
-
-    const shareUrl = window.location.origin + window.location.pathname + '#share=' + encoded;
-    const tooLarge = shareUrl.length > MAX_SHARE_URL_LENGTH;
-
-    const originalHTML = btn.innerHTML;
-    const copiedHTML = '<i class="bi bi-check-lg"></i> Copied!';
-
-    function onCopied() {
-      if (!tooLarge) {
-        window.location.hash = 'share=' + encoded;
-      }
-      btn.innerHTML = copiedHTML;
-      setTimeout(() => { btn.innerHTML = originalHTML; }, 2000);
-    }
-
-    if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(shareUrl).then(onCopied).catch(() => {
-        // clipboard.writeText failed; nothing further to do in secure context
-      });
-    } else {
-      try {
-        const tempInput = document.createElement("textarea");
-        tempInput.value = shareUrl;
-        document.body.appendChild(tempInput);
-        tempInput.select();
-        document.execCommand("copy");
-        document.body.removeChild(tempInput);
-        onCopied();
-      } catch (_) {
-        // copy failed silently
-      }
-    }
-  }
-
-  shareButton.addEventListener("click", function () { copyShareUrl(shareButton); });
-  mobileShareButton.addEventListener("click", function () { copyShareUrl(mobileShareButton); });
-
-  function loadFromShareHash() {
-    if (typeof pako === 'undefined') return;
-    const hash = window.location.hash;
-    if (!hash.startsWith('#share=')) return;
-    const encoded = hash.slice('#share='.length);
-    if (!encoded) return;
-    try {
-      const decoded = decodeMarkdownFromShare(encoded);
-      markdownEditor.value = decoded;
-      renderMarkdown();
-      saveCurrentTabState();
-    } catch (e) {
-      console.error("Failed to load shared content:", e);
-      alert("The shared URL could not be decoded. It may be corrupted or incomplete.");
-    }
-  }
-
-  loadFromShareHash();
 
   const dropEvents = ["dragenter", "dragover", "dragleave", "drop"];
 
@@ -2616,18 +2308,9 @@ This is a fully client-side application. Your content never leaves your browser 
   }
 
   document.addEventListener("keydown", function (e) {
-    if ((e.ctrlKey || e.metaKey) && e.key === "s") {
-      e.preventDefault();
-      exportMd.click();
-    }
     if ((e.ctrlKey || e.metaKey) && e.key === "c") {
-      const activeEl = document.activeElement;
-      const isTextControl = activeEl && (activeEl.tagName === "TEXTAREA" || activeEl.tagName === "INPUT");
-      const hasSelection = window.getSelection && window.getSelection().toString().trim().length > 0;
-      if (!isTextControl && !hasSelection) {
-        e.preventDefault();
-        copyMarkdownButton.click();
-      }
+      e.preventDefault();
+      copyMarkdownButton.click();
     }
     // Story 1.2: Only allow sync toggle shortcut when in split view
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "S") {
@@ -2636,347 +2319,5 @@ This is a fully client-side application. Your content never leaves your browser 
         toggleSyncScrolling();
       }
     }
-    // New tab
-    if ((e.ctrlKey || e.metaKey) && e.key === "t") {
-      e.preventDefault();
-      newTab();
-    }
-    // Close tab
-    if ((e.ctrlKey || e.metaKey) && e.key === "w") {
-      e.preventDefault();
-      closeTab(activeTabId);
-    }
-    // Close Mermaid zoom modal with Escape
-    if (e.key === "Escape") {
-      closeMermaidModal();
-    }
   });
-
-  document.getElementById('tab-reset-btn').addEventListener('click', function() {
-    resetAllTabs();
-  });
-
-  // ========================================
-  // MERMAID DIAGRAM TOOLBAR
-  // ========================================
-
-  /**
-   * Serialises an SVG element to a data URL suitable for use as an image source.
-   * Inline styles and dimensions are preserved so the PNG matches the rendered diagram.
-   */
-  function svgToDataUrl(svgEl) {
-    const clone = svgEl.cloneNode(true);
-    // Ensure explicit width/height so the canvas has the right dimensions
-    const bbox = svgEl.getBoundingClientRect();
-    if (!clone.getAttribute('width'))  clone.setAttribute('width',  Math.round(bbox.width));
-    if (!clone.getAttribute('height')) clone.setAttribute('height', Math.round(bbox.height));
-    const serialized = new XMLSerializer().serializeToString(clone);
-    return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(serialized);
-  }
-
-  /**
-   * Renders an SVG element onto a canvas and resolves with the canvas.
-   */
-  function svgToCanvas(svgEl) {
-    return new Promise((resolve, reject) => {
-      const bbox = svgEl.getBoundingClientRect();
-      const scale = window.devicePixelRatio || 1;
-      const width  = Math.max(Math.round(bbox.width),  1);
-      const height = Math.max(Math.round(bbox.height), 1);
-
-      const canvas = document.createElement('canvas');
-      canvas.width  = width  * scale;
-      canvas.height = height * scale;
-      const ctx = canvas.getContext('2d');
-      ctx.scale(scale, scale);
-
-      // Fill background matching current theme using the CSS variable value
-      const bgColor = getComputedStyle(document.documentElement)
-        .getPropertyValue('--bg-color').trim() || '#ffffff';
-      ctx.fillStyle = bgColor;
-      ctx.fillRect(0, 0, width, height);
-
-      const img = new Image();
-      img.onload  = () => { ctx.drawImage(img, 0, 0, width, height); resolve(canvas); };
-      img.onerror = reject;
-      img.src = svgToDataUrl(svgEl);
-    });
-  }
-
-  /** Downloads the diagram in the given container as a PNG file. */
-  async function downloadMermaidPng(container, btn) {
-    const svgEl = container.querySelector('svg');
-    if (!svgEl) return;
-    const original = btn.innerHTML;
-    btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-    try {
-      const canvas = await svgToCanvas(svgEl);
-      canvas.toBlob(blob => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `diagram-${Date.now()}.png`;
-        a.click();
-        URL.revokeObjectURL(url);
-        btn.innerHTML = '<i class="bi bi-check-lg"></i>';
-        setTimeout(() => { btn.innerHTML = original; }, 1500);
-      }, 'image/png');
-    } catch (e) {
-      console.error('Mermaid PNG export failed:', e);
-      btn.innerHTML = original;
-    }
-  }
-
-  /** Copies the diagram in the given container as a PNG image to the clipboard. */
-  async function copyMermaidImage(container, btn) {
-    const svgEl = container.querySelector('svg');
-    if (!svgEl) return;
-    const original = btn.innerHTML;
-    btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-    try {
-      const canvas = await svgToCanvas(svgEl);
-      canvas.toBlob(async blob => {
-        try {
-          await navigator.clipboard.write([
-            new ClipboardItem({ 'image/png': blob })
-          ]);
-          btn.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
-        } catch (clipErr) {
-          console.error('Clipboard write failed:', clipErr);
-          btn.innerHTML = '<i class="bi bi-x-lg"></i>';
-        }
-        setTimeout(() => { btn.innerHTML = original; }, 1800);
-      }, 'image/png');
-    } catch (e) {
-      console.error('Mermaid copy failed:', e);
-      btn.innerHTML = original;
-    }
-  }
-
-  /** Downloads the SVG source of a diagram. */
-  function downloadMermaidSvg(container, btn) {
-    const svgEl = container.querySelector('svg');
-    if (!svgEl) return;
-    const clone = svgEl.cloneNode(true);
-    const serialized = new XMLSerializer().serializeToString(clone);
-    const blob = new Blob([serialized], { type: 'image/svg+xml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `diagram-${Date.now()}.svg`;
-    a.click();
-    URL.revokeObjectURL(url);
-    const original = btn.innerHTML;
-    btn.innerHTML = '<i class="bi bi-check-lg"></i>';
-    setTimeout(() => { btn.innerHTML = original; }, 1500);
-  }
-
-  // ---- Zoom modal state ----
-  let modalZoomScale = 1;
-  let modalPanX = 0;
-  let modalPanY = 0;
-  let modalIsDragging = false;
-  let modalDragStart = { x: 0, y: 0 };
-  let modalCurrentSvgEl = null;
-
-  const mermaidZoomModal   = document.getElementById('mermaid-zoom-modal');
-  const mermaidModalDiagram = document.getElementById('mermaid-modal-diagram');
-
-  function applyModalTransform() {
-    if (modalCurrentSvgEl) {
-      modalCurrentSvgEl.style.transform =
-        `translate(${modalPanX}px, ${modalPanY}px) scale(${modalZoomScale})`;
-    }
-  }
-
-  function closeMermaidModal() {
-    if (!mermaidZoomModal.classList.contains('active')) return;
-    mermaidZoomModal.classList.remove('active');
-    mermaidModalDiagram.innerHTML = '';
-    modalCurrentSvgEl = null;
-    modalZoomScale = 1;
-    modalPanX = 0;
-    modalPanY = 0;
-  }
-
-  /** Opens the zoom modal with the SVG from the given container. */
-  function openMermaidZoomModal(container) {
-    const svgEl = container.querySelector('svg');
-    if (!svgEl) return;
-
-    mermaidModalDiagram.innerHTML = '';
-    modalZoomScale = 1;
-    modalPanX = 0;
-    modalPanY = 0;
-
-    const svgClone = svgEl.cloneNode(true);
-    // Remove fixed dimensions so it sizes naturally inside the modal
-    svgClone.removeAttribute('width');
-    svgClone.removeAttribute('height');
-    svgClone.style.width  = 'auto';
-    svgClone.style.height = 'auto';
-    svgClone.style.maxWidth  = '80vw';
-    svgClone.style.maxHeight = '60vh';
-    svgClone.style.transformOrigin = 'center';
-    mermaidModalDiagram.appendChild(svgClone);
-    modalCurrentSvgEl = svgClone;
-
-    mermaidZoomModal.classList.add('active');
-  }
-
-  // Modal close button
-  document.getElementById('mermaid-modal-close').addEventListener('click', closeMermaidModal);
-  // Click backdrop to close
-  mermaidZoomModal.addEventListener('click', function(e) {
-    if (e.target === mermaidZoomModal) closeMermaidModal();
-  });
-
-  // Zoom controls
-  document.getElementById('mermaid-modal-zoom-in').addEventListener('click', () => {
-    modalZoomScale = Math.min(modalZoomScale + 0.25, 10);
-    applyModalTransform();
-  });
-  document.getElementById('mermaid-modal-zoom-out').addEventListener('click', () => {
-    modalZoomScale = Math.max(modalZoomScale - 0.25, 0.1);
-    applyModalTransform();
-  });
-  document.getElementById('mermaid-modal-zoom-reset').addEventListener('click', () => {
-    modalZoomScale = 1; modalPanX = 0; modalPanY = 0;
-    applyModalTransform();
-  });
-
-  // Mouse-wheel zoom inside modal
-  mermaidModalDiagram.addEventListener('wheel', function(e) {
-    e.preventDefault();
-    const delta = e.deltaY < 0 ? 0.15 : -0.15;
-    modalZoomScale = Math.min(Math.max(modalZoomScale + delta, 0.1), 10);
-    applyModalTransform();
-  }, { passive: false });
-
-  // Drag to pan inside modal
-  mermaidModalDiagram.addEventListener('mousedown', function(e) {
-    modalIsDragging = true;
-    modalDragStart = { x: e.clientX - modalPanX, y: e.clientY - modalPanY };
-    mermaidModalDiagram.classList.add('dragging');
-  });
-  document.addEventListener('mousemove', function(e) {
-    if (!modalIsDragging) return;
-    modalPanX = e.clientX - modalDragStart.x;
-    modalPanY = e.clientY - modalDragStart.y;
-    applyModalTransform();
-  });
-  document.addEventListener('mouseup', function() {
-    if (modalIsDragging) {
-      modalIsDragging = false;
-      mermaidModalDiagram.classList.remove('dragging');
-    }
-  });
-
-  // Modal download buttons (operate on the currently displayed SVG)
-  document.getElementById('mermaid-modal-download-png').addEventListener('click', async function() {
-    if (!modalCurrentSvgEl) return;
-    const btn = this;
-    const original = btn.innerHTML;
-    btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-    try {
-      // Use the original SVG (with dimensions) for proper PNG rendering
-      const canvas = await svgToCanvas(modalCurrentSvgEl);
-      canvas.toBlob(blob => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = `diagram-${Date.now()}.png`; a.click();
-        URL.revokeObjectURL(url);
-        btn.innerHTML = '<i class="bi bi-check-lg"></i>';
-        setTimeout(() => { btn.innerHTML = original; }, 1500);
-      }, 'image/png');
-    } catch (e) {
-      console.error('Modal PNG export failed:', e);
-      btn.innerHTML = original;
-    }
-  });
-
-  document.getElementById('mermaid-modal-copy').addEventListener('click', async function() {
-    if (!modalCurrentSvgEl) return;
-    const btn = this;
-    const original = btn.innerHTML;
-    btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
-    try {
-      const canvas = await svgToCanvas(modalCurrentSvgEl);
-      canvas.toBlob(async blob => {
-        try {
-          await navigator.clipboard.write([
-            new ClipboardItem({ 'image/png': blob })
-          ]);
-          btn.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
-        } catch (clipErr) {
-          console.error('Clipboard write failed:', clipErr);
-          btn.innerHTML = '<i class="bi bi-x-lg"></i>';
-        }
-        setTimeout(() => { btn.innerHTML = original; }, 1800);
-      }, 'image/png');
-    } catch (e) {
-      console.error('Modal copy failed:', e);
-      btn.innerHTML = original;
-    }
-  });
-
-  document.getElementById('mermaid-modal-download-svg').addEventListener('click', function() {
-    if (!modalCurrentSvgEl) return;
-    const serialized = new XMLSerializer().serializeToString(modalCurrentSvgEl);
-    const blob = new Blob([serialized], { type: 'image/svg+xml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `diagram-${Date.now()}.svg`; a.click();
-    URL.revokeObjectURL(url);
-  });
-
-  /**
-   * Adds the hover toolbar to every rendered Mermaid container.
-   * Safe to call multiple times – existing toolbars are not duplicated.
-   */
-  function addMermaidToolbars() {
-    markdownPreview.querySelectorAll('.mermaid-container').forEach(container => {
-      if (container.querySelector('.mermaid-toolbar')) return; // already added
-      const svgEl = container.querySelector('svg');
-      if (!svgEl) return; // diagram not yet rendered
-
-      const toolbar = document.createElement('div');
-      toolbar.className = 'mermaid-toolbar';
-      toolbar.setAttribute('aria-label', 'Diagram actions');
-
-      const btnZoom = document.createElement('button');
-      btnZoom.className = 'mermaid-toolbar-btn';
-      btnZoom.title = 'Zoom diagram';
-      btnZoom.setAttribute('aria-label', 'Zoom diagram');
-      btnZoom.innerHTML = '<i class="bi bi-arrows-fullscreen"></i>';
-      btnZoom.addEventListener('click', () => openMermaidZoomModal(container));
-
-      const btnPng = document.createElement('button');
-      btnPng.className = 'mermaid-toolbar-btn';
-      btnPng.title = 'Download PNG';
-      btnPng.setAttribute('aria-label', 'Download PNG');
-      btnPng.innerHTML = '<i class="bi bi-file-image"></i> PNG';
-      btnPng.addEventListener('click', () => downloadMermaidPng(container, btnPng));
-
-      const btnCopy = document.createElement('button');
-      btnCopy.className = 'mermaid-toolbar-btn';
-      btnCopy.title = 'Copy image to clipboard';
-      btnCopy.setAttribute('aria-label', 'Copy image to clipboard');
-      btnCopy.innerHTML = '<i class="bi bi-clipboard-image"></i> Copy';
-      btnCopy.addEventListener('click', () => copyMermaidImage(container, btnCopy));
-
-      const btnSvg = document.createElement('button');
-      btnSvg.className = 'mermaid-toolbar-btn';
-      btnSvg.title = 'Download SVG';
-      btnSvg.setAttribute('aria-label', 'Download SVG');
-      btnSvg.innerHTML = '<i class="bi bi-filetype-svg"></i> SVG';
-      btnSvg.addEventListener('click', () => downloadMermaidSvg(container, btnSvg));
-
-      toolbar.appendChild(btnZoom);
-      toolbar.appendChild(btnCopy);
-      toolbar.appendChild(btnPng);
-      toolbar.appendChild(btnSvg);
-      container.appendChild(toolbar);
-    });
-  }
 });

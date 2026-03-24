@@ -1,17 +1,29 @@
 {
   "name": "markdown-viewer-desktop",
-  "version": "1.0.0",
+  "author": "ramezio",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ramezio/markdown-viewer-fork.git"
+  },
+  "contributors": [
+    "ramezio",
+    "JBroeren",
+    "ThisIs-Developer"
+  ],
+  "version": "0.0.0-dev",
   "private": true,
-  "description": "Neutralinojs desktop port of Markdown Viewer",
+  "description": "Neutralinojs desktop port of Markdown Viewer (https://github.com/ThisIs-Developer/markdown-viewer)",
   "scripts": {
     "setup": "node setup-binaries.js",
     "postsetup": "node prepare.js",
+    "clean": "npx -y rimraf bin dist node_modules .tmp .neutralinojs.log resources/js/script.js resources/styles.css resources/assets resources/index.html resources/js/neutralino.js resources/js/neutralino.d.ts",
     "predev": "npm run setup",
     "dev": "npx -y @neutralinojs/neu@11.7.0 run",
     "prebuild": "npm run setup",
-    "build": "npx -y @neutralinojs/neu@11.7.0 build --embed-resources",
-    "build:portable": "npx -y @neutralinojs/neu@11.7.0 build --release",
-    "build:all": "npm run build && npm run build:portable"
+    "build": "npx -y @neutralinojs/neu@11.7.0 build --embed-resources --release",
+    "build:portable": "npm run setup && npx -y @neutralinojs/neu@11.7.0 build --release",
+    "build:embedded": "npm run setup && npx -y @neutralinojs/neu@11.7.0 build --embed-resources"
   },
   "dependencies": {}
 }

@@ -5,17 +5,16 @@ node_modules/
 .lite_workspace.lua
 
 # Neutralinojs binaries and builds
-/bin
-/dist
-
-# Neutralinojs client (minified)
-neutralino.js
+bin/
+dist/
 
 # Build-generated resources (copied from root by prepare.js)
-/resources/js/script.js
-/resources/styles.css
-/resources/assets/
-/resources/index.html
+resources/js/script.js
+resources/js/neutralino*
+resources/styles.css
+resources/assets/
+resources/index.html
+
 
 # Neutralinojs related files
 .storage
@@ -25,4 +24,4 @@ neutralino.js
 .tmp
 
 # Docker build output
-/output
+output/

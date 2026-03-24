@@ -64,19 +64,38 @@ let html = fs.readFileSync(path.join(ROOT_DIR, "index.html"), "utf-8");
 html = html.replace(/href="assets\//g, 'href="/assets/');
 html = html.replace(/href="styles\.css"/g, 'href="/styles.css"');
 /** Replace root script.js tag with neutralino.js + main.js + script.js under /js/ */
+const originalHtml = html;
+const scriptTagRegex = /<script\s+src="script\.js"\s*><\/script>/;
+
+if (!scriptTagRegex.test(html)) {
+  console.error("✗ Could not find root script.js tag in index.html");
+  process.exit(1);
+}
+
 html = html.replace(
-  /<script src="script\.js"><\/script>/,
+  scriptTagRegex,
   '<script src="/js/neutralino.js"></script>\n    <script src="/js/main.js"></script>\n    <script src="/js/script.js"></script>',
 );
 
 /** Inject Neutralinojs app-info element after .app-container */
+const appContainerMarker = '<div class="app-container">';
+if (!html.includes(appContainerMarker)) {
+  console.error("✗ Could not find app container marker in index.html");
+  process.exit(1);
+}
+
 html = html.replace(
-  '<div class="app-container">',
+  appContainerMarker,
   `<div class="app-container">
       <div id="neutralino-app">
         <div id="neutralino-info"></div>
       </div>`,
 );
+
+if (html === originalHtml) {
+  console.error("✗ No prepare.js transformations were applied");
+  process.exit(1);
+}
 
 fs.writeFileSync(path.join(RESOURCES_DIR, "index.html"), html, "utf-8");
 console.log(

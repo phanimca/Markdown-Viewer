@@ -1,36 +1,3 @@
-// This is just a sample app. You can structure your Neutralinojs app code as you wish.
-// This example app is written with vanilla JavaScript and HTML.
-// Feel free to use any frontend framework you like :)
-// See more details: https://neutralino.js.org/docs/how-to/use-a-frontend-library
-
-/*
-    Function to display information about the Neutralino app.
-    This function updates the content of the 'info' element in the HTML
-    with details regarding the running Neutralino application, including
-    its ID, port, operating system, and version information.
-*/
-function showInfo() {
-  return `
-        ${NL_APPID} is running on port ${NL_PORT} inside ${NL_OS}
-        <br/><br/>
-        <span>server: v${NL_VERSION} . client: v${NL_CVERSION}</span>
-        `;
-}
-
-/*
-    Function to open the official Neutralino documentation in the default web browser.
-*/
-function openDocs() {
-  Neutralino.os.open("https://neutralino.js.org/docs");
-}
-
-/*
-    Function to open a tutorial video on Neutralino's official YouTube channel in the default web browser.
-*/
-function openTutorial() {
-  Neutralino.os.open("https://www.youtube.com/c/CodeZri");
-}
-
 /*
     Function to set up a system tray menu with options specific to the window mode.
     This function checks if the application is running in window mode, and if so,
@@ -45,7 +12,7 @@ function setTray() {
 
   // Define tray menu items
   let tray = {
-    icon: "/resources/icons/trayIcon.png",
+    icon: "/resources/assets/icon.jpg",
     menuItems: [
       { id: "VERSION", text: "Get version" },
       { id: "SEP", text: "-" },
@@ -68,7 +35,7 @@ function onTrayMenuItemClicked(event) {
       // Display version information
       Neutralino.os.showMessageBox(
         "Version information",
-        `Neutralinojs server: v${NL_VERSION} | Neutralinojs client: v${NL_CVERSION}`,
+        `Neutralinojs server: v${NL_VERSION}\nNeutralinojs client: v${NL_CVERSION}\nOS Name: ${NL_OS}\nArchitecture: ${NL_ARCH}\nApplication ID: ${NL_APPID}\nApplication Version: ${NL_APPVERSION}\nPort: ${NL_PORT}\nMode: ${NL_MODE}\nNeutralinojs server: v${NL_VERSION}\nNeutralinojs client: v${NL_CVERSION}\nCurrent working directory: ${NL_CWD}\nApplication path: ${NL_PATH}\nApplication data path: ${NL_DATAPATH}\nCommand-line arguments: ${NL_ARGS}\nProcess ID: ${NL_PID}\nResource mode: ${NL_RESMODE}\nExtensions enabled: ${NL_EXTENABLED}\nFramework binary's release commit hash: ${NL_COMMIT}\nClient library's release commit hash: ${NL_CCOMMIT}\nCustom method identifiers: ${NL_CMETHODS}\nInitial window state was loaded from the saved configuration: ${NL_WSAVSTLOADED}\nUser System Locale: ${NL_LOCALE}\nData passed during the framework binary compilation via the NEU_COMPILATION_DATA definition in the BuildZri configuration file: ${NL_COMPDATA}`,
       );
       break;
     case "QUIT":
@@ -97,31 +64,3 @@ if (NL_OS != "Darwin") {
   // TODO: Fix https://github.com/neutralinojs/neutralinojs/issues/615
   setTray();
 }
-
-// Open file passed as command-line argument (e.g. when double-clicking a .md file)
-(async function loadInitialFile() {
-  const args = Array.isArray(NL_ARGS) ? NL_ARGS : (() => { try { return JSON.parse(NL_ARGS); } catch(e) { return []; } })();
-  const filePath = args.find(a => typeof a === 'string' && /\.(md|markdown)$/i.test(a));
-  if (!filePath) return;
-
-  try {
-    const content = await Neutralino.filesystem.readFile(filePath);
-
-    function applyContent() {
-      const editor = document.getElementById('markdown-editor');
-      const dropzone = document.getElementById('dropzone');
-      if (!editor) return;
-      editor.value = content;
-      editor.dispatchEvent(new Event('input'));
-      if (dropzone) dropzone.style.display = 'none';
-    }
-
-    if (document.readyState === 'loading') {
-      document.addEventListener('DOMContentLoaded', applyContent);
-    } else {
-      setTimeout(applyContent, 0);
-    }
-  } catch (e) {
-    console.warn('Could not open initial file:', e);
-  }
-})();

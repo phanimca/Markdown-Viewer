@@ -11,9 +11,8 @@ Neutralinojs platform binaries are managed by `setup-binaries.js`, which downloa
 Desktop-only files (not generated):
 
 - `resources/js/main.js` — Neutralinojs lifecycle, tray menu, window events
-- `resources/js/neutralino.js` — Neutralinojs client library
 - `neutralino.config.json` — App configuration
-- `setup-binaries.js` — Idempotent binary setup (downloads on first use)
+- `setup-binaries.js` — Idempotent binary setup (downloads on first use or updates if `cli.binaryVersion` changes)
 
 ## Development
 
@@ -45,7 +44,7 @@ For more information, see the [Neutralinojs documentation](https://neutralino.js
 
 ### Building the app
 
-**Default** — Single-file executables with embedded resources:
+**Default** — Single-file executables with embedded resources + release ZIP bundle with separate `resources.neu` file:
 
 ```bash
 npm run build
@@ -57,10 +56,10 @@ npm run build
 npm run build:portable
 ```
 
-**Both** — Build embedded + portable in one step:
+**Embedded** — Single-file executables with embedded resources:
 
 ```bash
-npm run build:all
+npm run build:embedded
 ```
 
 Build output is placed in `dist/`.
@@ -79,7 +78,31 @@ Build artifacts will be output to `desktop-app/output/`.
 
 ## Releases
 
-Prebuilt binaries are automatically built and published as GitHub Releases when a tag matching `desktop-v*` is pushed (e.g., `desktop-v1.0.0`). See [`.github/workflows/desktop-build.yml`](../.github/workflows/desktop-build.yml).
+Prebuilt binaries are automatically built and published as GitHub Releases when a tag matching `desktop-v*` is pushed (e.g., `desktop-v2026.2.0`). See [`.github/workflows/desktop-build.yml`](../.github/workflows/desktop-build.yml).
+
+### Versioning
+
+The Git tag is the **single source of truth** for the release version, using CalVer (Calendar Versioning) format `desktop-vYYYY.M.P`;
+
+- `YYYY` = Year
+- `M` = Month
+- `P` = Patch (Defaults to 0, bumped if new release occurs same month)
+
+The CI workflow extracts the version from the tag (e.g., `desktop-v2026.2.0` → `2026.2.0`) and injects it into `neutralino.config.json` at build time. `package.json` carries a placeholder version (`0.0.0-dev`) since this is *not* an npm package.
+
+To create a release, you can use the utility script `tag.sh` to calculate the next [lightweight tag](https://git-scm.com/book/en/v2/Git-Basics-Tagging):
+
+```bash
+./tag.sh # Calculates the next tag based on the current date, latest tag, and commit SHA
+```
+
+or run the following commands, replacing `<YYYY.M.P>` with the desired version (e.g., `2026.2.1`):
+
+```bash
+git tag desktop-v<YYYY.M.P> && git push origin desktop-v<YYYY.M.P>
+```
+
+### Release assets
 
 Each release includes:
 

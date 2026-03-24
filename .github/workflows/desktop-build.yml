@@ -4,13 +4,14 @@ on:
   push:
     tags:
       - "desktop-v*"
+  workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
@@ -21,13 +22,21 @@ jobs:
         with:
           node-version: "lts/*"
 
+      - name: Inject version from tag
+        working-directory: desktop-app
+        run: |
+          VERSION="${GITHUB_REF_NAME#desktop-v}"
+          jq --arg v "$VERSION" '.version = $v' neutralino.config.json > tmp.json \
+            && mv tmp.json neutralino.config.json
+          echo "::notice::Building version $VERSION"
+
       - name: Setup Neutralinojs binaries
         working-directory: desktop-app
         run: npm run setup
 
       - name: Build all binaries (embedded + portable)
         working-directory: desktop-app
-        run: npm run build:all
+        run: npm run build
 
       - name: Stage release assets
         working-directory: desktop-app
@@ -63,6 +72,7 @@ jobs:
             --exclude='desktop-app/bin' \
             --exclude='desktop-app/node_modules' \
             --exclude='desktop-app/output' \
+            --exclude="desktop-app/$STAGING" \
             --exclude='.git' \
             desktop-app/
           cd desktop-app
@@ -74,6 +84,6 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: "Markdown Viewer Desktop ${{ github.ref_name }}"
+          name: "${{ github.ref_name }}"
           generate_release_notes: true
           files: desktop-app/release-assets/*
