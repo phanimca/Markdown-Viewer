@@ -1,1 +1,15 @@
+# Salesforce
 .sfdx/
+
+# Node
+node_modules/
+*.log
+npm-debug.log*
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/

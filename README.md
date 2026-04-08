@@ -57,6 +57,24 @@ Markdown Viewer is a professional, full-featured Markdown editor and preview app
 5. **Toggle Dark Mode** - Click the moon icon to switch between light and dark themes
 6. **Toggle Sync Scrolling** - Enable/disable synchronized scrolling between panels
 
+## 💻 Run With npm
+
+From the project root:
+
+```bash
+npm install
+npm run dev
+```
+
+This starts a local server at `http://localhost:5173`.
+
+Desktop app shortcuts are also available from the root:
+
+```bash
+npm run desktop:install
+npm run desktop:dev
+```
+
 ### Mermaid Diagram Toolbar
 
 When a Mermaid diagram is rendered, hover over it to reveal a small toolbar with the following actions:

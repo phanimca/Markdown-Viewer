@@ -1,0 +1,16 @@
+{
+  "name": "markdown-viewer",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Markdown Viewer web app with root npm scripts",
+  "scripts": {
+    "dev": "http-server . -p 5173 -c-1 -o /index.html",
+    "start": "npm run dev",
+    "desktop:install": "npm --prefix desktop-app install",
+    "desktop:dev": "npm --prefix desktop-app run dev",
+    "desktop:build": "npm --prefix desktop-app run build"
+  },
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}
