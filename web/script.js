@@ -14,6 +14,9 @@ document.addEventListener("DOMContentLoaded", function () {
   const markdownPreview = document.getElementById("markdown-preview");
   const themeToggle = document.getElementById("theme-toggle");
   const openButton = document.getElementById("open-button");
+  const openLocalBtn = document.getElementById("open-local");
+  const openSharepointBtn = document.getElementById("open-sharepoint");
+  const openAdoBtn = document.getElementById("open-ado");
   const saveButton = document.getElementById("save-button");
   const insertAdoTocButton = document.getElementById("insert-ado-toc");
   const insertAdoNoteButton = document.getElementById("insert-ado-note");
@@ -54,7 +57,9 @@ document.addEventListener("DOMContentLoaded", function () {
   const mobileWordCount     = document.getElementById("mobile-word-count");
   const mobileCharCount     = document.getElementById("mobile-char-count");
   const mobileToggleSync    = document.getElementById("mobile-toggle-sync");
-  const mobileOpenBtn       = document.getElementById("mobile-open-button");
+  const mobileOpenLocalBtn        = document.getElementById("mobile-open-local");
+  const mobileOpenSharepointBtn   = document.getElementById("mobile-open-sharepoint");
+  const mobileOpenAdoBtn          = document.getElementById("mobile-open-ado");
   const mobileSaveBtn       = document.getElementById("mobile-save-button");
   const mobileInsertAdoTocBtn = document.getElementById("mobile-insert-ado-toc");
   const mobileInsertAdoNoteBtn = document.getElementById("mobile-insert-ado-note");
@@ -824,6 +829,74 @@ This is a fully client-side application. Your content never leaves your browser 
   }
 
   async function saveMarkdownFile() {
+      async function importFromSharePoint(url) {
+        let resp;
+        try {
+          resp = await fetch(url);
+        } catch (e) {
+          throw new Error(
+            "Failed to fetch the file. This is often a CORS restriction. " +
+            "Ensure the SharePoint file is shared with \u2018Anyone with the link\u2019 and the URL is a direct download link."
+          );
+        }
+        if (!resp.ok) {
+          throw new Error(
+            "SharePoint returned HTTP " + resp.status + ": " + resp.statusText +
+            ". Check that the URL is correct and the file is publicly accessible."
+          );
+        }
+        const text = await resp.text();
+        const fileName = url.split("/").pop().split("?")[0] || "sharepoint.md";
+        markdownEditor.value = text;
+        currentFileName = fileName;
+        currentFileHandle = null;
+        renderMarkdown();
+      }
+
+      async function importFromAdo(org, project, repo, branch, filePath, pat) {
+        if (!filePath.startsWith("/")) filePath = "/" + filePath;
+        const url = new URL(
+          "https://dev.azure.com/" +
+          encodeURIComponent(org) + "/" +
+          encodeURIComponent(project) +
+          "/_apis/git/repositories/" +
+          encodeURIComponent(repo) + "/items"
+        );
+        url.searchParams.set("path", filePath);
+        url.searchParams.set("versionDescriptor.version", branch);
+        url.searchParams.set("versionDescriptor.versionType", "branch");
+        url.searchParams.set("$format", "text");
+        url.searchParams.set("api-version", "7.1");
+        const headers = { "Accept": "text/plain" };
+        if (pat) {
+          headers["Authorization"] = "Basic " + btoa(":" + pat);
+        }
+        let resp;
+        try {
+          resp = await fetch(url.toString(), { headers });
+        } catch (e) {
+          throw new Error(
+            "Network error contacting Azure DevOps. " +
+            "Check your connection or that the organization name is correct."
+          );
+        }
+        if (resp.status === 401 || resp.status === 403) {
+          throw new Error(
+            "Authentication failed (HTTP " + resp.status + "). " +
+            "Provide a valid PAT with Code (Read) scope for private repositories."
+          );
+        }
+        if (!resp.ok) {
+          throw new Error("Azure DevOps returned HTTP " + resp.status + ": " + resp.statusText);
+        }
+        const text = await resp.text();
+        const fileName = filePath.split("/").pop() || "ado.md";
+        markdownEditor.value = text;
+        currentFileName = fileName;
+        currentFileHandle = null;
+        renderMarkdown();
+      }
+
     const markdownText = markdownEditor.value;
 
     if (window.showSaveFilePicker) {
@@ -1369,7 +1442,18 @@ This is a fully client-side application. Your content never leaves your browser 
   mobileToggleSync.addEventListener("click", () => {
     toggleSyncScrolling();
   });
-  mobileOpenBtn.addEventListener("click", () => openMarkdownFile());
+  mobileOpenLocalBtn.addEventListener("click", () => { openMarkdownFile(); closeMobileMenu(); });
+  mobileOpenSharepointBtn.addEventListener("click", () => {
+    sharepointError.classList.add("d-none");
+    sharepointUrlInput.value = "";
+    closeMobileMenu();
+    sharepointImportModal.show();
+  });
+  mobileOpenAdoBtn.addEventListener("click", () => {
+    adoError.classList.add("d-none");
+    closeMobileMenu();
+    adoImportModal.show();
+  });
   mobileSaveBtn.addEventListener("click", () => saveMarkdownFile());
   mobileInsertAdoTocBtn.addEventListener("click", () => {
     insertAdoTocSnippet();
@@ -1466,8 +1550,86 @@ This is a fully client-side application. Your content never leaves your browser 
     renderMarkdown();
   });
 
-  openButton.addEventListener("click", function () {
+  // Bootstrap Modal instances for import dialogs
+  const sharepointImportModal = new bootstrap.Modal(document.getElementById("sharepoint-import-modal"));
+  const sharepointUrlInput    = document.getElementById("sharepoint-url");
+  const sharepointImportBtn   = document.getElementById("sharepoint-import-btn");
+  const sharepointError       = document.getElementById("sharepoint-error");
+
+  const adoImportModal  = new bootstrap.Modal(document.getElementById("ado-import-modal"));
+  const adoOrgInput     = document.getElementById("ado-org");
+  const adoProjectInput = document.getElementById("ado-project");
+  const adoRepoInput    = document.getElementById("ado-repo");
+  const adoBranchInput  = document.getElementById("ado-branch");
+  const adoPathInput    = document.getElementById("ado-path");
+  const adoPatInput     = document.getElementById("ado-pat");
+  const adoError        = document.getElementById("ado-error");
+  const adoImportBtn    = document.getElementById("ado-import-btn");
+
+  openLocalBtn.addEventListener("click", function (e) {
+    e.preventDefault();
     openMarkdownFile();
+  });
+
+  openSharepointBtn.addEventListener("click", function (e) {
+    e.preventDefault();
+    sharepointError.classList.add("d-none");
+    sharepointUrlInput.value = "";
+    sharepointImportModal.show();
+  });
+
+  openAdoBtn.addEventListener("click", function (e) {
+    e.preventDefault();
+    adoError.classList.add("d-none");
+    adoImportModal.show();
+  });
+
+  sharepointImportBtn.addEventListener("click", async function () {
+    const url = sharepointUrlInput.value.trim();
+    if (!url) {
+      sharepointError.textContent = "Please enter a SharePoint file URL.";
+      sharepointError.classList.remove("d-none");
+      return;
+    }
+    sharepointImportBtn.disabled = true;
+    sharepointImportBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Importing\u2026';
+    try {
+      await importFromSharePoint(url);
+      sharepointImportModal.hide();
+    } catch (e) {
+      sharepointError.textContent = e.message;
+      sharepointError.classList.remove("d-none");
+    } finally {
+      sharepointImportBtn.disabled = false;
+      sharepointImportBtn.innerHTML = '<i class="bi bi-download me-1"></i> Import';
+    }
+  });
+
+  adoImportBtn.addEventListener("click", async function () {
+    const org      = adoOrgInput.value.trim();
+    const project  = adoProjectInput.value.trim();
+    const repo     = adoRepoInput.value.trim();
+    const branch   = adoBranchInput.value.trim() || "main";
+    const filePath = adoPathInput.value.trim();
+    const pat      = adoPatInput.value.trim();
+    if (!org || !project || !repo || !filePath) {
+      adoError.textContent = "Organization, Project, Repository and File Path are required.";
+      adoError.classList.remove("d-none");
+      return;
+    }
+    adoImportBtn.disabled = true;
+    adoImportBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Importing\u2026';
+    try {
+      await importFromAdo(org, project, repo, branch, filePath, pat);
+      adoImportModal.hide();
+      adoPatInput.value = "";
+    } catch (e) {
+      adoError.textContent = e.message;
+      adoError.classList.remove("d-none");
+    } finally {
+      adoImportBtn.disabled = false;
+      adoImportBtn.innerHTML = '<i class="bi bi-download me-1"></i> Import';
+    }
   });
 
   saveButton.addEventListener("click", function () {
