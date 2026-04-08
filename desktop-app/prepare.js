@@ -15,7 +15,7 @@
 const fs = require("fs");
 const path = require("path");
 
-const ROOT_DIR = path.resolve(__dirname, "..");
+const ROOT_DIR = path.resolve(__dirname, "../web");
 const RESOURCES_DIR = path.resolve(__dirname, "resources");
 
 /** @section Copy shared files */
@@ -36,25 +36,25 @@ function copyDirSync(src, dest) {
   }
 }
 
-/** script.js → resources/js/script.js */
+/** web/script.js → resources/js/script.js */
 const jsDest = path.join(RESOURCES_DIR, "js");
 fs.mkdirSync(jsDest, { recursive: true });
 fs.copyFileSync(
   path.join(ROOT_DIR, "script.js"),
   path.join(jsDest, "script.js"),
 );
-console.log("✓ Copied script.js → resources/js/script.js");
+console.log("✓ Copied web/script.js → resources/js/script.js");
 
-/** styles.css → resources/styles.css */
+/** web/styles.css → resources/styles.css */
 fs.copyFileSync(
   path.join(ROOT_DIR, "styles.css"),
   path.join(RESOURCES_DIR, "styles.css"),
 );
-console.log("✓ Copied styles.css → resources/styles.css");
+console.log("✓ Copied web/styles.css → resources/styles.css");
 
-/** assets/ → resources/assets/ */
+/** web/assets/ → resources/assets/ */
 copyDirSync(path.join(ROOT_DIR, "assets"), path.join(RESOURCES_DIR, "assets"));
-console.log("✓ Copied assets/ → resources/assets/");
+console.log("✓ Copied web/assets/ → resources/assets/");
 
 /** @section Generate index.html with Neutralinojs injections */
 
