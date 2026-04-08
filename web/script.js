@@ -527,12 +527,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
   const SANITIZE_CONFIG = {
     ADD_TAGS: ['mjx-container'],
-    ADD_ATTR: ['id', 'class']
+    ADD_ATTR: ['id', 'class', 'style']
   };
 
   const SANITIZE_CONFIG_PDF = {
     ADD_TAGS: ['mjx-container', 'svg', 'path', 'g', 'marker', 'defs', 'pattern', 'clipPath'],
-    ADD_ATTR: ['id', 'class', 'viewBox', 'd', 'fill', 'stroke', 'transform', 'marker-end', 'marker-start']
+    ADD_ATTR: ['id', 'class', 'style', 'viewBox', 'd', 'fill', 'stroke', 'transform', 'marker-end', 'marker-start']
   };
 
   const DEBUG_PDF_EXPORT = false;
