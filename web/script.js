@@ -17,6 +17,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const openLocalBtn = document.getElementById("open-local");
   const openSharepointBtn = document.getElementById("open-sharepoint");
   const openAdoBtn = document.getElementById("open-ado");
+  const chooseFileButton = document.getElementById("choose-file-button");
   const saveButton = document.getElementById("save-button");
   const insertAdoTocButton = document.getElementById("insert-ado-toc");
   const insertAdoNoteButton = document.getElementById("insert-ado-note");
@@ -111,8 +112,6 @@ document.addEventListener("DOMContentLoaded", function () {
     pedantic: false,
     smartypants: false,
     xhtml: false,
-    headerIds: true,
-    mangle: false,
   };
 
   const renderer = new marked.Renderer();
@@ -132,11 +131,6 @@ document.addEventListener("DOMContentLoaded", function () {
   marked.setOptions({
     ...markedOptions,
     renderer: renderer,
-    highlight: function (code, language) {
-      if (language === 'mermaid') return code;
-      const validLanguage = hljs.getLanguage(language) ? language : "plaintext";
-      return hljs.highlight(code, { language: validLanguage }).value;
-    },
   });
 
   function escapeHtml(text) {
@@ -830,6 +824,17 @@ This is a fully client-side application. Your content never leaves your browser 
 
   async function saveMarkdownFile() {
       async function importFromSharePoint(url) {
+        let parsedUrl;
+        try {
+          parsedUrl = new URL(url);
+        } catch {
+          throw new Error("Invalid URL format. Please provide a full SharePoint HTTPS URL.");
+        }
+
+        if (parsedUrl.protocol !== "https:") {
+          throw new Error("Only HTTPS SharePoint URLs are allowed.");
+        }
+
         let resp;
         try {
           resp = await fetch(url);
@@ -846,7 +851,7 @@ This is a fully client-side application. Your content never leaves your browser 
           );
         }
         const text = await resp.text();
-        const fileName = url.split("/").pop().split("?")[0] || "sharepoint.md";
+        const fileName = parsedUrl.pathname.split("/").pop() || "sharepoint.md";
         markdownEditor.value = text;
         currentFileName = fileName;
         currentFileHandle = null;
@@ -1571,6 +1576,12 @@ This is a fully client-side application. Your content never leaves your browser 
     openMarkdownFile();
   });
 
+  if (chooseFileButton) {
+    chooseFileButton.addEventListener("click", function () {
+      fileInput.click();
+    });
+  }
+
   openSharepointBtn.addEventListener("click", function (e) {
     e.preventDefault();
     sharepointError.classList.add("d-none");
@@ -1629,6 +1640,7 @@ This is a fully client-side application. Your content never leaves your browser 
     } finally {
       adoImportBtn.disabled = false;
       adoImportBtn.innerHTML = '<i class="bi bi-download me-1"></i> Import';
+      adoPatInput.value = "";
     }
   });
 
@@ -1636,13 +1648,17 @@ This is a fully client-side application. Your content never leaves your browser 
     saveMarkdownFile();
   });
 
-  insertAdoTocButton.addEventListener("click", function () {
-    insertAdoTocSnippet();
-  });
+  if (insertAdoTocButton) {
+    insertAdoTocButton.addEventListener("click", function () {
+      insertAdoTocSnippet();
+    });
+  }
 
-  insertAdoNoteButton.addEventListener("click", function () {
-    insertAdoNoteSnippet();
-  });
+  if (insertAdoNoteButton) {
+    insertAdoNoteButton.addEventListener("click", function () {
+      insertAdoNoteSnippet();
+    });
+  }
 
   fileInput.addEventListener("change", function (e) {
     const file = e.target.files[0];
@@ -1690,8 +1706,8 @@ This is a fully client-side application. Your content never leaves your browser 
       const isDarkTheme =
         document.documentElement.getAttribute("data-theme") === "dark";
       const cssTheme = isDarkTheme
-        ? "https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.3.0/github-markdown-dark.min.css"
-        : "https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.3.0/github-markdown.min.css";
+        ? "https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.9.0/github-markdown-dark.min.css"
+        : "https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.9.0/github-markdown.min.css";
       const fullHtml = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1699,7 +1715,7 @@ This is a fully client-side application. Your content never leaves your browser 
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Markdown Export</title>
   <link rel="stylesheet" href="${cssTheme}">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/${
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/${
     isDarkTheme ? "github-dark" : "github"
   }.min.css">
   <style>

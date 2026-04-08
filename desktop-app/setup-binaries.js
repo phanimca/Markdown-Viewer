@@ -23,7 +23,7 @@ const BIN_DIR = path.resolve(__dirname, "bin");
 const VERSION_MARKER = path.join(BIN_DIR, ".version");
 
 /** Neu CLI package — same version used across all npm scripts */
-const NEU_CLI = "@neutralinojs/neu@11.7.0";
+const NEU_CLI = "@neutralinojs/neu@11.7.1";
 
 const config = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf-8"));
 const expectedVersion = config.cli.binaryVersion;
