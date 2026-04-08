@@ -1,6 +1,5 @@
 {
   "version": 2,
-  "public": "web",
   "buildCommand": "echo 'Static files ready'",
   "outputDirectory": "web",
   "cleanUrls": true,
