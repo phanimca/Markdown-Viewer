@@ -1,6 +1,7 @@
 # Configuration
 
 This page documents all configuration files and customizable settings in **Markdown Viewer**.
+commit
 
 ---
 
