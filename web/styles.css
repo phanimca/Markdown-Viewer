@@ -766,8 +766,7 @@ a:focus {
   align-items: center;
   column-gap: 0.5rem;
   row-gap: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: visible;
   white-space: nowrap;
 }
 

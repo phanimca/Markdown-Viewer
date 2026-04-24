@@ -17,7 +17,6 @@ document.addEventListener("DOMContentLoaded", function () {
   const openLocalBtn = document.getElementById("open-local");
   const openSharepointBtn = document.getElementById("open-sharepoint");
   const openAdoBtn = document.getElementById("open-ado");
-  const chooseFileButton = document.getElementById("choose-file-button");
   const saveButton = document.getElementById("save-button");
   const insertAdoTocButton = document.getElementById("insert-ado-toc");
   const insertAdoNoteButton = document.getElementById("insert-ado-note");
@@ -1576,12 +1575,6 @@ This is a fully client-side application. Your content never leaves your browser 
     openMarkdownFile();
   });
 
-  if (chooseFileButton) {
-    chooseFileButton.addEventListener("click", function () {
-      fileInput.click();
-    });
-  }
-
   openSharepointBtn.addEventListener("click", function (e) {
     e.preventDefault();
     sharepointError.classList.add("d-none");
@@ -2129,6 +2122,9 @@ This is a fully client-side application. Your content never leaves your browser 
   // Minimum scale factor to maintain readability (50%)
   const MIN_SCALE_FACTOR = 0.5;
 
+  // PDF typography defaults for a document-like reading experience.
+  const PDF_FONT_STACK = '"Georgia", "Times New Roman", Times, serif';
+
   /**
    * Task 1 & 2: Calculates scale factor with minimum enforcement
    * @param {number} elementHeight - Original height of element in pixels
@@ -2253,10 +2249,12 @@ This is a fully client-side application. Your content never leaves your browser 
       const tempElement = document.createElement("div");
       tempElement.className = "markdown-body pdf-export";
       tempElement.innerHTML = sanitizedHtml;
-      tempElement.style.padding = "20px";
-      tempElement.style.width = "210mm";
+      tempElement.style.padding = "0";
+      tempElement.style.width = `${PAGE_CONFIG.contentWidth}mm`;
       tempElement.style.margin = "0 auto";
-      tempElement.style.fontSize = "14px";
+      tempElement.style.fontFamily = PDF_FONT_STACK;
+      tempElement.style.fontSize = "15px";
+      tempElement.style.lineHeight = "1.7";
       tempElement.style.position = "fixed";
       tempElement.style.left = "-9999px";
       tempElement.style.top = "0";
@@ -2264,6 +2262,34 @@ This is a fully client-side application. Your content never leaves your browser 
       const currentTheme = document.documentElement.getAttribute("data-theme");
       tempElement.style.backgroundColor = currentTheme === "dark" ? "#0d1117" : "#ffffff";
       tempElement.style.color = currentTheme === "dark" ? "#c9d1d9" : "#24292e";
+
+      const pdfStyle = document.createElement("style");
+      pdfStyle.textContent = `
+        .pdf-export, .pdf-export * {
+          font-family: ${PDF_FONT_STACK} !important;
+        }
+        .pdf-export pre,
+        .pdf-export code,
+        .pdf-export kbd,
+        .pdf-export samp {
+          font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace !important;
+        }
+        .pdf-export p,
+        .pdf-export li,
+        .pdf-export td,
+        .pdf-export th,
+        .pdf-export blockquote {
+          font-size: 15px;
+          line-height: 1.7;
+        }
+        .pdf-export h1 { font-size: 32px; line-height: 1.25; margin-top: 1.2em; }
+        .pdf-export h2 { font-size: 26px; line-height: 1.3; margin-top: 1.15em; }
+        .pdf-export h3 { font-size: 22px; line-height: 1.35; margin-top: 1.1em; }
+        .pdf-export h4 { font-size: 19px; line-height: 1.4; }
+        .pdf-export h5 { font-size: 17px; line-height: 1.45; }
+        .pdf-export h6 { font-size: 16px; line-height: 1.5; }
+      `;
+      tempElement.prepend(pdfStyle);
 
       document.body.appendChild(tempElement);
 
@@ -2314,6 +2340,62 @@ This is a fully client-side application. Your content never leaves your browser 
         handleOversizedElements(pageBreakAnalysis.oversizedElements, pageBreakAnalysis.pageHeightPx);
       }
 
+      function calculateLogicalBreaks(container, pageHeightPx) {
+        const totalHeight = container.scrollHeight;
+        if (!pageHeightPx || totalHeight <= pageHeightPx) {
+          return [];
+        }
+
+        const blockSelectors = [
+          'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+          'pre', 'table', 'blockquote', 'ul', 'ol', 'p', 'img',
+          '.mermaid-container', '.ado-callout'
+        ];
+
+        const candidates = Array.from(container.querySelectorAll(blockSelectors.join(',')))
+          .map((el) => ({
+            top: el.offsetTop,
+            bottom: el.offsetTop + el.offsetHeight
+          }))
+          .filter((pos) => pos.top > 0 && pos.bottom > pos.top)
+          .sort((a, b) => a.top - b.top);
+
+        const breaks = [];
+        let startY = 0;
+        const minFillRatio = 0.65;
+
+        while (startY + pageHeightPx < totalHeight) {
+          const targetBoundary = startY + pageHeightPx;
+          const minBreakY = startY + pageHeightPx * minFillRatio;
+
+          let chosen = null;
+          for (let i = 0; i < candidates.length; i++) {
+            const c = candidates[i];
+            if (c.top >= minBreakY && c.top < targetBoundary) {
+              if (!chosen || c.top > chosen.top) {
+                chosen = c;
+              }
+            }
+          }
+
+          let breakY = chosen ? chosen.top : targetBoundary;
+          breakY = Math.max(startY + 1, Math.min(breakY, totalHeight - 1));
+
+          if (breaks.length > 0 && breakY <= breaks[breaks.length - 1]) {
+            breakY = Math.min(targetBoundary, totalHeight - 1);
+          }
+
+          breaks.push(breakY);
+          startY = breakY;
+
+          if (breaks.length > 200) {
+            break;
+          }
+        }
+
+        return breaks;
+      }
+
       const pdfOptions = {
         orientation: 'portrait',
         unit: 'mm',
@@ -2337,26 +2419,52 @@ This is a fully client-side application. Your content never leaves your browser 
         windowHeight: tempElement.scrollHeight
       });
 
-      const scaleFactor = canvas.width / contentWidth;
-      const imgHeight = canvas.height / scaleFactor;
-      const pagesCount = Math.ceil(imgHeight / (pageHeight - margin * 2));
+      const contentHeight = pageHeight - margin * 2;
+      const pageHeightPx = (tempElement.offsetWidth * PAGE_CONFIG.contentHeight) / PAGE_CONFIG.contentWidth;
+      const logicalBreaksPx = calculateLogicalBreaks(tempElement, pageHeightPx);
+      const cssSegments = [0, ...logicalBreaksPx, tempElement.scrollHeight];
+      const canvasScaleY = canvas.height / tempElement.scrollHeight;
+      const maxSourceHeightPerPage = Math.max(1, Math.floor((contentHeight / contentWidth) * canvas.width));
 
-      for (let page = 0; page < pagesCount; page++) {
-        if (page > 0) pdf.addPage();
+      let isFirstPage = true;
+      for (let segmentIndex = 0; segmentIndex < cssSegments.length - 1; segmentIndex++) {
+        const segmentTopPx = cssSegments[segmentIndex];
+        const segmentBottomPx = cssSegments[segmentIndex + 1];
+        let remainingSourceHeight = Math.max(1, Math.floor((segmentBottomPx - segmentTopPx) * canvasScaleY));
+        let currentSourceY = Math.floor(segmentTopPx * canvasScaleY);
 
-        const sourceY = page * (pageHeight - margin * 2) * scaleFactor;
-        const sourceHeight = Math.min(canvas.height - sourceY, (pageHeight - margin * 2) * scaleFactor);
-        const destHeight = sourceHeight / scaleFactor;
+        while (remainingSourceHeight > 0) {
+          if (!isFirstPage) {
+            pdf.addPage();
+          }
+          isFirstPage = false;
 
-        const pageCanvas = document.createElement('canvas');
-        pageCanvas.width = canvas.width;
-        pageCanvas.height = sourceHeight;
+          const chunkSourceHeight = Math.min(remainingSourceHeight, maxSourceHeightPerPage);
+          const destHeight = (chunkSourceHeight / canvas.width) * contentWidth;
 
-        const ctx = pageCanvas.getContext('2d');
-        ctx.drawImage(canvas, 0, sourceY, canvas.width, sourceHeight, 0, 0, canvas.width, sourceHeight);
+          const pageCanvas = document.createElement('canvas');
+          pageCanvas.width = canvas.width;
+          pageCanvas.height = chunkSourceHeight;
 
-        const imgData = pageCanvas.toDataURL('image/png');
-        pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, destHeight);
+          const ctx = pageCanvas.getContext('2d');
+          ctx.drawImage(
+            canvas,
+            0,
+            currentSourceY,
+            canvas.width,
+            chunkSourceHeight,
+            0,
+            0,
+            canvas.width,
+            chunkSourceHeight
+          );
+
+          const imgData = pageCanvas.toDataURL('image/png');
+          pdf.addImage(imgData, 'PNG', margin, margin, contentWidth, destHeight);
+
+          currentSourceY += chunkSourceHeight;
+          remainingSourceHeight -= chunkSourceHeight;
+        }
       }
 
       pdf.save("document.pdf");
