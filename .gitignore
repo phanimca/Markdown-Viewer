@@ -14,5 +14,6 @@ Thumbs.db
 # Editor
 .vscode/
 .idea/
-.vercel
+.vercel/*
+!.vercel/project.json
 .env*.local
