@@ -1,7 +1,7 @@
 {
   "version": 2,
-  "buildCommand": "echo 'Static files ready'",
-  "outputDirectory": "web",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
   "cleanUrls": true,
   "trailingSlash": false,
   "headers": [

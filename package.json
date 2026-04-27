@@ -4,6 +4,7 @@
   "private": true,
   "description": "Markdown Viewer web app with root npm scripts",
   "scripts": {
+    "build": "node scripts/build.mjs",
     "dev": "http-server web -p 5173 -c-1 -o",
     "start": "npm run dev",
     "desktop:install": "npm --prefix desktop-app install",

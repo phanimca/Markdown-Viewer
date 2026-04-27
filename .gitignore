@@ -3,6 +3,7 @@
 
 # Node
 node_modules/
+dist/
 *.log
 npm-debug.log*
 
@@ -13,3 +14,5 @@ Thumbs.db
 # Editor
 .vscode/
 .idea/
+.vercel
+.env*.local
