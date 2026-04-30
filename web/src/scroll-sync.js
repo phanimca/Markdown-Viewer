@@ -163,7 +163,7 @@ export function syncEditorClickToPreview() {
 }
 
 export function syncPreviewClickToEditor(event) {
-  if (!state.syncScrollingEnabled) return;
+  if (!state.syncScrollingEnabled || state.isEditorScrolling) return;
 
   const paneRect = dom.previewPane.getBoundingClientRect();
   const clickedPreviewPx = dom.previewPane.scrollTop + (event.clientY - paneRect.top);
