@@ -305,30 +305,6 @@ body {
   display: none;
 }
 
-.dropzone {
-  border: 2px dashed var(--border-color);
-  border-radius: 6px;
-  padding: 20px;
-  text-align: center;
-  margin-bottom: 20px;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  background-color: var(--dropzone-bg);
-}
-
-.dropzone.active {
-  border-color: var(--accent-color);
-  background-color: rgba(var(--accent-color), 0.05);
-}
-
-.dropzone p {
-  transition: transform 0.2s ease;
-}
-
-.dropzone:hover p {
-  transform: scale(1.02);
-}
-
 /* Dropdown improvements */
 .dropdown-menu {
   background-color: var(--bg-color);

@@ -7,6 +7,13 @@ dist/
 *.log
 npm-debug.log*
 
+# Generated desktop resources (rebuilt by prepare.js)
+desktop-app/resources/
+desktop-app/bin/
+
+# Vite cache
+.vite/
+
 # OS generated files
 .DS_Store
 Thumbs.db
@@ -17,3 +24,6 @@ Thumbs.db
 .vercel/*
 !.vercel/project.json
 .env*.local
+
+# Claude Code
+.claude/

@@ -3,26 +3,26 @@
 /**
  * prepare.js — Build script for the Neutralinojs desktop app.
  *
- * Copies shared browser-version files (script.js, styles.css, assets/)
- * from the repo root into desktop-app/resources/, and generates a
- * Neutralinojs-compatible index.html from the root index.html by
- * injecting the required Neutralinojs script tags and wrapper elements.
+ * Copies the Vite build output (dist/) into desktop-app/resources/ and
+ * generates a Neutralinojs-compatible index.html by injecting the required
+ * Neutralinojs script tags.
  *
- * Run from the desktop-app/ directory:
- *   node prepare.js
+ * Must be run after `npm run build` (vite build) from the repo root.
+ * The desktop:prepare npm script does both steps in sequence.
  */
 
 const fs = require("fs");
 const path = require("path");
 
-const ROOT_DIR = path.resolve(__dirname, "../web");
+const DIST_DIR = path.resolve(__dirname, "../dist");
 const RESOURCES_DIR = path.resolve(__dirname, "resources");
 
-/** @section Copy shared files */
+if (!fs.existsSync(DIST_DIR)) {
+  console.error("✗ dist/ not found — run `npm run build` first");
+  process.exit(1);
+}
 
-/**
- * Recursively copy a directory, creating target dirs as needed.
- */
+/** Recursively copy a directory, creating target dirs as needed. */
 function copyDirSync(src, dest) {
   fs.mkdirSync(dest, { recursive: true });
   for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
@@ -36,60 +36,30 @@ function copyDirSync(src, dest) {
   }
 }
 
-/** web/script.js → resources/js/script.js */
-const jsDest = path.join(RESOURCES_DIR, "js");
-fs.mkdirSync(jsDest, { recursive: true });
-fs.copyFileSync(
-  path.join(ROOT_DIR, "script.js"),
-  path.join(jsDest, "script.js"),
-);
-console.log("✓ Copied web/script.js → resources/js/script.js");
-
-/** web/styles.css → resources/styles.css */
-fs.copyFileSync(
-  path.join(ROOT_DIR, "styles.css"),
-  path.join(RESOURCES_DIR, "styles.css"),
-);
-console.log("✓ Copied web/styles.css → resources/styles.css");
-
-/** web/assets/ → resources/assets/ */
-copyDirSync(path.join(ROOT_DIR, "assets"), path.join(RESOURCES_DIR, "assets"));
-console.log("✓ Copied web/assets/ → resources/assets/");
+/** Copy entire dist/ → resources/ */
+copyDirSync(DIST_DIR, RESOURCES_DIR);
+console.log("✓ Copied dist/ → resources/");
 
 /** @section Generate index.html with Neutralinojs injections */
 
-let html = fs.readFileSync(path.join(ROOT_DIR, "index.html"), "utf-8");
-
-/** Fix relative asset paths → absolute (Neutralinojs documentRoot is /resources/) */
-html = html.replace(/href="assets\//g, 'href="/assets/');
-html = html.replace(/href="styles\.css"/g, 'href="/styles.css"');
-/** Replace root script.js tag with neutralino.js + main.js + script.js under /js/ */
+const indexPath = path.join(RESOURCES_DIR, "index.html");
+let html = fs.readFileSync(indexPath, "utf-8");
 const originalHtml = html;
-const scriptTagRegex = /<script\s+src="script\.js"\s*><\/script>/;
 
-if (!scriptTagRegex.test(html)) {
-  console.error("✗ Could not find root script.js tag in index.html");
+/**
+ * Vite emits: <script type="module" crossorigin src="/js/index.js"></script>
+ * Inject neutralino.js + desktop-main.js before it.
+ */
+const moduleScriptRegex = /(<script\s[^>]*type="module"[^>]*src="\/js\/index\.js"[^>]*><\/script>)/;
+
+if (!moduleScriptRegex.test(html)) {
+  console.error("✗ Could not find Vite module script tag (/js/index.js) in resources/index.html");
   process.exit(1);
 }
 
 html = html.replace(
-  scriptTagRegex,
-  '<script src="/js/neutralino.js"></script>\n    <script src="/js/main.js"></script>\n    <script src="/js/script.js"></script>',
-);
-
-/** Inject Neutralinojs app-info element after .app-container */
-const appContainerMarker = '<div class="app-container">';
-if (!html.includes(appContainerMarker)) {
-  console.error("✗ Could not find app container marker in index.html");
-  process.exit(1);
-}
-
-html = html.replace(
-  appContainerMarker,
-  `<div class="app-container">
-      <div id="neutralino-app">
-        <div id="neutralino-info"></div>
-      </div>`,
+  moduleScriptRegex,
+  '<script src="/js/neutralino.js"></script>\n    <script src="/js/desktop-main.js"></script>\n    $1',
 );
 
 if (html === originalHtml) {
@@ -97,9 +67,17 @@ if (html === originalHtml) {
   process.exit(1);
 }
 
-fs.writeFileSync(path.join(RESOURCES_DIR, "index.html"), html, "utf-8");
-console.log(
-  "✓ Generated resources/index.html (Neutralinojs injections applied)",
-);
+fs.writeFileSync(indexPath, html, "utf-8");
+console.log("✓ Generated resources/index.html (Neutralinojs injections applied)");
 
-console.log("\nDone! Run `npm run dev` to start the desktop app.");
+/** @section Copy desktop-specific source files */
+const desktopSrcDir = path.resolve(__dirname, "src");
+const desktopMainSrc = path.join(desktopSrcDir, "desktop-main.js");
+const desktopMainDest = path.join(RESOURCES_DIR, "js", "desktop-main.js");
+
+if (fs.existsSync(desktopMainSrc)) {
+  fs.copyFileSync(desktopMainSrc, desktopMainDest);
+  console.log("✓ Copied desktop-main.js to resources/js/");
+}
+
+console.log("\nDone! Run `npm run desktop:dev` to start the desktop app.");

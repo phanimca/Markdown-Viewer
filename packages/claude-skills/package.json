@@ -1,0 +1,27 @@
+{
+  "name": "markdown-viewer-claude-skills",
+  "version": "1.0.0",
+  "description": "Claude Code custom slash commands for the Markdown Viewer project",
+  "main": "install.js",
+  "bin": {
+    "markdown-viewer-skills": "./install.js"
+  },
+  "scripts": {
+    "postinstall": "node install.js"
+  },
+  "files": [
+    "commands/",
+    "install.js"
+  ],
+  "engines": {
+    "node": ">=16"
+  },
+  "keywords": [
+    "claude-code",
+    "claude",
+    "skills",
+    "slash-commands",
+    "markdown-viewer"
+  ],
+  "license": "MIT"
+}

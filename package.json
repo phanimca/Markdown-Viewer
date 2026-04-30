@@ -4,14 +4,32 @@
   "private": true,
   "description": "Markdown Viewer web app with root npm scripts",
   "scripts": {
-    "build": "node scripts/build.mjs",
-    "dev": "http-server web -p 5173 -c-1 -o",
+    "build": "vite build",
+    "dev": "vite",
+    "preview": "vite preview",
     "start": "npm run dev",
     "desktop:install": "npm --prefix desktop-app install",
+    "desktop:prepare": "npm run build && node desktop-app/prepare.js",
     "desktop:dev": "npm --prefix desktop-app run dev",
-    "desktop:build": "npm --prefix desktop-app run build"
+    "desktop:build": "npm --prefix desktop-app run build",
+    "skills:install": "node packages/claude-skills/install.js",
+    "skills:list": "node packages/claude-skills/install.js --list"
+  },
+  "dependencies": {
+    "@popperjs/core": "^2.11.8",
+    "bootstrap": "^5.3.8",
+    "bootstrap-icons": "^1.13.1",
+    "dompurify": "^3.3.3",
+    "emoji-toolkit": "^9.0.1",
+    "file-saver": "^2.0.5",
+    "github-markdown-css": "^5.9.0",
+    "highlight.js": "^11.11.1",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^2.5.1",
+    "marked": "^16.0.0",
+    "mermaid": "^11.4.1"
   },
   "devDependencies": {
-    "http-server": "^14.1.1"
+    "vite": "^6.3.5"
   }
 }
