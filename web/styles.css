@@ -267,7 +267,7 @@ body {
 
 .toolbar {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
@@ -278,8 +278,8 @@ body {
   border: 1px solid var(--border-color);
   color: var(--text-color);
   border-radius: 6px;
-  padding: 6px 12px;
-  font-size: 14px;
+  padding: 5px 8px;
+  font-size: 13px;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -298,11 +298,15 @@ body {
 }
 
 .tool-button i {
-  font-size: 16px;
+  font-size: 14px;
 }
 
 .file-input {
-  display: none;
+  display: none !important;
+  visibility: hidden;
+  position: absolute;
+  width: 0;
+  height: 0;
 }
 
 /* Dropdown improvements */
@@ -761,8 +765,8 @@ a:focus {
 .header-right {
   display: flex;
   align-items: center;
-  min-width: max-content;
   justify-self: end;
+  min-width: 0;
 }
 
 /* View Mode Button Group */
@@ -872,11 +876,29 @@ a:focus {
   }
 
   .header-right {
-    justify-self: start;
+    justify-self: end;
   }
 
   .view-mode-group {
     justify-self: start;
+  }
+
+  /* Hide button text labels, show only icons */
+  .toolbar .btn-text,
+  .view-mode-btn span {
+    display: none;
+  }
+
+  .toolbar .tool-button {
+    padding: 6px 8px;
+  }
+
+  .view-mode-btn {
+    padding: 6px 10px;
+  }
+
+  .view-mode-btn.active {
+    padding: 5px 9px;
   }
 }
 
@@ -884,16 +906,33 @@ a:focus {
   .stats-container {
     display: none !important;
   }
+
+  .dropzone {
+    padding: 10px;
+    font-size: 12px;
+  }
+
+  .dropzone p {
+    font-size: 12px;
+  }
 }
 
 @media (max-width: 1199px) {
   .tool-button {
-    padding: 5px 10px;
+    padding: 4px 6px;
+    font-size: 12px;
+  }
+
+  .tool-button i {
     font-size: 13px;
   }
 
   .github-link {
-    margin-right: 0.75rem;
+    margin-right: 0.5rem;
+  }
+
+  .toolbar {
+    gap: 4px;
   }
 }
 

@@ -186,13 +186,17 @@ export function toggleSyncScrolling() {
   ].filter(b => b.el);
   if (state.syncScrollingEnabled) {
     buttons.forEach(({ el, mobile }) => {
-      el.innerHTML = `<i class="bi bi-link-45deg${mobile ? ' me-2' : ''}"></i> Sync On`;
+      el.innerHTML = mobile
+        ? '<i class="bi bi-link-45deg me-2"></i> Sync On'
+        : '<i class="bi bi-link-45deg"></i><span class="btn-text">Sync On</span>';
       el.classList.add("sync-enabled", "border-primary");
       el.classList.remove("sync-disabled");
     });
   } else {
     buttons.forEach(({ el, mobile }) => {
-      el.innerHTML = `<i class="bi bi-link${mobile ? ' me-2' : ''}"></i> Sync Off`;
+      el.innerHTML = mobile
+        ? '<i class="bi bi-link me-2"></i> Sync Off'
+        : '<i class="bi bi-link"></i><span class="btn-text">Sync Off</span>';
       el.classList.add("sync-disabled");
       el.classList.remove("sync-enabled", "border-primary");
     });

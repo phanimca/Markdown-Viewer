@@ -134,6 +134,23 @@ export async function importFromAdo(org, project, repo, branch, filePath, pat) {
   renderMarkdown();
 }
 
+export async function reloadFile() {
+  if (!state.currentFileHandle) {
+    alert("No file is currently open. Open a file first to use reload.");
+    return;
+  }
+
+  try {
+    const file = await state.currentFileHandle.getFile();
+    const content = await file.text();
+    dom.markdownEditor.value = content;
+    renderMarkdown();
+  } catch (e) {
+    console.error("Failed to reload file:", e);
+    alert("Failed to reload file: " + e.message);
+  }
+}
+
 export async function saveMarkdownFile() {
   const markdownText = dom.markdownEditor.value;
 
@@ -260,7 +277,7 @@ export function insertAdoNoteSnippet() {
 
 export function showCopiedMessage() {
   const originalText = dom.copyMarkdownButton.innerHTML;
-  dom.copyMarkdownButton.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
+  dom.copyMarkdownButton.innerHTML = '<i class="bi bi-check-lg"></i><span class="btn-text">Copied!</span>';
 
   setTimeout(() => {
     dom.copyMarkdownButton.innerHTML = originalText;

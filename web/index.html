@@ -74,11 +74,11 @@
                 <!-- Right section: Toolbar -->
                 <div class="toolbar d-none d-md-flex header-right">
                     <button id="toggle-sync" class="tool-button sync-enabled border-primary" title="Toggle Sync Scrolling">
-                        <i class="bi bi-link-45deg"></i> Sync On
+                        <i class="bi bi-link-45deg"></i><span class="btn-text">Sync On</span>
                     </button>
                     <div class="dropdown">
                         <button class="tool-button dropdown-toggle" type="button" id="open-button" data-bs-toggle="dropdown" aria-expanded="false" title="Open Markdown">
-                            <i class="bi bi-folder2-open"></i> Open
+                            <i class="bi bi-folder2-open"></i><span class="btn-text">Open</span>
                         </button>
                         <ul class="dropdown-menu" aria-labelledby="open-button">
                             <li><a class="dropdown-item" href="#" id="open-local"><i class="bi bi-file-earmark-text me-2"></i>Local File</a></li>
@@ -87,13 +87,16 @@
                         </ul>
                     </div>
                     <button id="save-button" class="tool-button" title="Save Markdown">
-                        <i class="bi bi-save"></i> Save
+                        <i class="bi bi-save"></i><span class="btn-text">Save</span>
+                    </button>
+                    <button id="reload-button" class="tool-button" title="Reload File (Ctrl+R)">
+                        <i class="bi bi-arrow-clockwise"></i>
                     </button>
                     <input type="file" id="file-input" class="file-input" accept=".md,.markdown,text/markdown">
-                    
+
                     <div class="dropdown">
-                        <button class="tool-button dropdown-toggle" type="button" id="exportDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-download"></i> Export
+                        <button class="tool-button dropdown-toggle" type="button" id="exportDropdown" data-bs-toggle="dropdown" aria-expanded="false" title="Export">
+                            <i class="bi bi-download"></i><span class="btn-text">Export</span>
                         </button>
                         <ul class="dropdown-menu" aria-labelledby="exportDropdown">
                             <li><a class="dropdown-item" href="#" id="export-md">Markdown (.md)</a></li>
@@ -101,11 +104,11 @@
                             <li><a class="dropdown-item" href="#" id="export-pdf">PDF</a></li>
                         </ul>
                     </div>
-                    
+
                     <button id="copy-markdown-button" class="tool-button" title="Copy Markdown">
-                        <i class="bi bi-clipboard"></i> Copy
+                        <i class="bi bi-clipboard"></i><span class="btn-text">Copy</span>
                     </button>
-                    
+
                     <button id="theme-toggle" class="tool-button" title="Toggle Dark Mode">
                         <i class="bi bi-moon"></i>
                     </button>
@@ -170,6 +173,10 @@
 
                             <button id="mobile-save-button" class="mobile-menu-item" title="Save Markdown">
                                 <i class="bi bi-save me-2"></i> Save
+                            </button>
+
+                            <button id="mobile-reload-button" class="mobile-menu-item" title="Reload File">
+                                <i class="bi bi-arrow-clockwise me-2"></i> Reload
                             </button>
 
                             <button id="mobile-insert-ado-toc" class="mobile-menu-item" title="Insert ADO TOC">

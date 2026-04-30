@@ -11,6 +11,7 @@ export function initDom() {
   dom.openSharepointBtn = document.getElementById("open-sharepoint");
   dom.openAdoBtn = document.getElementById("open-ado");
   dom.saveButton = document.getElementById("save-button");
+  dom.reloadButton = document.getElementById("reload-button");
   dom.insertAdoTocButton = document.getElementById("insert-ado-toc");
   dom.insertAdoNoteButton = document.getElementById("insert-ado-note");
   dom.fileInput = document.getElementById("file-input");
@@ -44,6 +45,7 @@ export function initDom() {
   dom.mobileOpenSharepointBtn = document.getElementById("mobile-open-sharepoint");
   dom.mobileOpenAdoBtn = document.getElementById("mobile-open-ado");
   dom.mobileSaveBtn = document.getElementById("mobile-save-button");
+  dom.mobileReloadBtn = document.getElementById("mobile-reload-button");
   dom.mobileInsertAdoTocBtn = document.getElementById("mobile-insert-ado-toc");
   dom.mobileInsertAdoNoteBtn = document.getElementById("mobile-insert-ado-note");
   dom.mobileExportMd = document.getElementById("mobile-export-md");

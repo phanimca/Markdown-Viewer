@@ -5,8 +5,8 @@ import 'github-markdown-css/github-markdown.css';
 import 'highlight.js/styles/github.min.css';
 import '../styles.css';
 
-// Bootstrap JS (registers data-bs-* auto-init for dropdowns etc.)
-import 'bootstrap';
+// Bootstrap JS components
+import { Dropdown } from 'bootstrap';
 
 import { initDom, dom } from './dom.js';
 import { renderMarkdown, debouncedRender, updateMobileStats } from './render.js';
@@ -18,7 +18,7 @@ import {
   toggleSyncScrolling, invalidateSyncAnchors
 } from './scroll-sync.js';
 import {
-  importMarkdownFile, openMarkdownFile, saveMarkdownFile,
+  importMarkdownFile, openMarkdownFile, saveMarkdownFile, reloadFile,
   importFromSharePoint, importFromAdo,
   exportMarkdownFile, exportHtmlFile,
   insertAdoTocSnippet, insertAdoNoteSnippet,
@@ -28,6 +28,11 @@ import { runPdfExport } from './pdf-export.js';
 
 // Initialize DOM refs (module scripts are deferred — DOM is ready)
 initDom();
+
+// Initialize Bootstrap dropdowns explicitly
+document.querySelectorAll('[data-bs-toggle="dropdown"]').forEach(el => {
+  new Dropdown(el);
+});
 
 // Theme initialization
 const prefersDarkMode = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
@@ -351,6 +356,11 @@ dom.saveButton.addEventListener("click", function () {
   saveMarkdownFile();
 });
 
+// Reload
+dom.reloadButton.addEventListener("click", function () {
+  reloadFile();
+});
+
 // ADO insert buttons
 if (dom.insertAdoTocButton) {
   dom.insertAdoTocButton.addEventListener("click", function () {
@@ -420,6 +430,9 @@ document.addEventListener("keydown", function (e) {
   } else if (key === 's') {
     e.preventDefault();
     saveMarkdownFile();
+  } else if (key === 'r') {
+    e.preventDefault();
+    reloadFile();
   } else if (e.altKey && key === 't') {
     e.preventDefault();
     insertAdoTocSnippet();
@@ -461,6 +474,7 @@ dom.mobileOpenAdoBtn.addEventListener("click", () => {
   dom.adoImportModal.show();
 });
 dom.mobileSaveBtn.addEventListener("click", () => saveMarkdownFile());
+dom.mobileReloadBtn.addEventListener("click", () => { reloadFile(); closeMobileMenu(); });
 dom.mobileInsertAdoTocBtn.addEventListener("click", () => {
   insertAdoTocSnippet();
   closeMobileMenu();
